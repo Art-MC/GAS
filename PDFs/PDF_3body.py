@@ -117,7 +117,7 @@ class PDF3B(object):
             off_inds = xp.where(~xp.eye(maxinds, dtype=bool))
 
         vprint(f"Num total atoms in sim = {len(positions)}")
-        if not np.all(pbcs):
+        if not np.all(pbcs_np):
             vprint(f"Num non-edge atoms = {len(center_inds)}")
 
         if skip != 1:
@@ -237,7 +237,7 @@ class PDF3B(object):
 
     def _get_vecs_pbcs(self, points, pointslists, bbox, pbcs=[1, 1, 1]):
         xp = self._xp
-        if np.any(pbcs):
+        if xp.any(pbcs):
             assert xp.all(xp.min(pointslists, axis=1) >= 0)
             assert xp.all(xp.max(pointslists, axis=1) <= bbox)
         assert xp.issubdtype(
