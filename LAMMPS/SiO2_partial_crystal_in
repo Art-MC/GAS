@@ -1,0 +1,69 @@
+# Initialization
+units           metal
+dimension       3
+boundary        p p p
+atom_style      charge
+read_data       mp-6930_orth_rate13
+
+# Delete atoms in the center
+region replace block 19.6 64 21.2 63.9 48.8 152.1 units box
+delete_atoms region replace
+
+# Mark atoms from amorphous phase
+group previous type 1 2
+
+# Put the crystal in the center
+read_data /pscratch/sd/h/hjia/amp_struc/mp-6930_orth_small.lmp add append offset 0 0 0 0 0 shift 19.6 21.2 48.8
+
+# Mark added atoms
+group new subtract all previous
+
+# Group atoms in several regions
+region center block 19.6 64 21.2 63.9 48.8 152.1 units box
+region NNcheck block 19.6 64 15 70 42 157 units box
+region NN block 15 70 15 70 42 157 units box
+group CenterGroup region center
+group NNGroup region NN
+group NNCheckGroup region NNcheck
+
+# Define interatomic potential with 10 angstrom cutoff
+pair_style      tersoff
+pair_coeff      * * /pscratch/sd/h/hjia/lmp_pot/2007_SiO.tersoff Si O
+
+# Define compute for temperature
+compute         myTemp all temp
+
+# Dump trajectory
+dump newatoms new custom 10000 new.lammpstrj id type x y z
+dump dumpCenter CenterGroup custom 10000 center.lammpstrj id type x y z
+dump dumpNNc NNCheckGroup custom 10000 nncheck.lammpstrj id type x y z
+dump dumpNN NNGroup custom 10000 nn.lammpstrj id type x y z
+dump dumpAll all custom 10000 all.lammpstrj id type x y z
+
+# Minimization (Polak-Ribiere algorithm)
+min_style cg 
+minimize 1e-25 1e-25 5000 10000
+
+# Initialize velocities for heating
+velocity        all create 0.0 12345 mom yes rot no
+
+# Heating from 300K to 1000K in NVT ensemble
+fix             1 all nvt temp 0.1 1000.0 0.5
+timestep        0.001 # timestep is 0.001ps
+run             300000 # 0.3ns
+# Equilibration at 1000K
+unfix           1
+fix             2 all nvt temp 1000.0 1000.0 0.5
+run             2000000 # 2.0ns
+# Cooling to room temp in NPT ensemble
+unfix           2
+fix             3 all npt temp 1000.0 300.0 0.5 iso 1.0 1.0 1.0
+timestep        0.001
+run             700000 # 0.7ns Fast quench
+# Further relaxation at NVT ensemble
+unfix           3
+fix             4 all nvt temp 300.0 300.0 0.5
+run             2000000 # 2.0ns
+
+# Output final configuration
+write_data      mp-6930_partial_crystal

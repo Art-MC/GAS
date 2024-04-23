@@ -71,7 +71,9 @@ class PDF3B(object):
         if np.any(
             np.round(positions_np.max(axis=0), 9) >= np.round(bbox_np, 9)
         ):  # cant have atom right on cell edge
-            bbox_np_pbcs += 1e-9
+            for i in range(len(pbcs)):
+                if bbox_np_pbcs[i] != 0:
+                    bbox_np_pbcs += 1e-9
         tree_all = KDTree(positions_np, copy_data=True, boxsize=bbox_np_pbcs)
         center_inds_skip = center_inds[::skip]
         tree_centers = KDTree(

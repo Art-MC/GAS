@@ -1,0 +1,44 @@
+# Initialization
+units           metal
+dimension       3
+boundary        p p p
+atom_style      charge
+read_data       /pscratch/sd/h/hjia/amp_struc/mp-6930_orth.lmp
+
+# Define interatomic potential with 10 angstrom cutoff
+pair_style      tersoff
+pair_coeff      * * /pscratch/sd/h/hjia/lmp_pot/2007_SiO.tersoff Si O
+
+# Define compute for temperature
+compute         myTemp all temp
+
+# Dump trajectory
+dump myDump all custom 10000 rate13.lammpstrj id type x y z
+
+# Minimization (Polak-Ribiere algorithm)
+min_style cg 
+minimize 1e-25 1e-25 5000 10000
+
+# Initialize velocities for heating
+velocity        all create 0.0 12345 mom yes rot no
+
+# Heating from 0K to 4000K in NVT ensemble
+fix             1 all nvt temp 0.1 4000.0 0.5
+timestep        0.001 # timestep is 0.001ps
+run             300000 # 0.3ns
+# Equilibration at 4000K
+unfix           1
+fix             2 all nvt temp 4000.0 4000.0 0.5
+run             2000000 # 2.0ns
+# Cooling to room temperature in NPT ensemble
+unfix           2
+fix             3 all npt temp 4000.0 300.0 0.5 iso 1.0 1.0 1.0
+timestep        0.001
+run             370000 # 0.37ns Quenching rate of 10K/ps, or 10^13 K/s
+# Further relaxation at NVT ensemble
+unfix           3
+fix             4 all nvt temp 300.0 300.0 0.5
+run             2000000 # 2.0ns
+
+# Output final configuration
+write_data      mp-6930_rate13
