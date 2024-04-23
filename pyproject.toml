@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = 'gas'
+version = '2024.04'
+authors = [
+    { name = "Haili Jia" },
+    { name = 'Arthur McCray' },
+    { name = 'Luis Rangel DaCosta' },
+]
+description = 'Generating Amorphous Structures'
+readme = 'README.md'
