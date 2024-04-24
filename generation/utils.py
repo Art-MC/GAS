@@ -1,6 +1,7 @@
 import h5py
 from ase import Atoms
 import numpy as np
+import ase.io
 
 from scipy.spatial import Voronoi
 
