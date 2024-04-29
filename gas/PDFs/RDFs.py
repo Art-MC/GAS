@@ -393,10 +393,9 @@ def quick_rdf(
     dr_ind=1.5,
     skip=1,
     hist_r_max=10.0,
-    hist_dr=0.05,
+    dr=0.05,
     renormalize_reduced_pdf=True,
-    plot_result=True,
-    use_pbcs=[1, 1, 0],
+    pbcs=[1, 1, 0],
 ):
     """
     Calculate the RDF in a two-stage process:
@@ -410,16 +409,16 @@ def quick_rdf(
     dr_ind = bbox / vol_size
 
     # Histogram coordinates
-    hist_r = np.arange(0.0, hist_r_max, hist_dr)
+    hist_r = np.arange(0.0, hist_r_max, dr)
     hist_sig = np.zeros_like(hist_r)
     num_bins = hist_r.shape[0]
 
     ### KD tree for getting neighbors, cpu cuz faster
-    bbox_np_pbcs = bbox * np.array(use_pbcs)
+    bbox_np_pbcs = bbox * np.array(pbcs)
     if np.any(
         np.round(atoms.positions.max(axis=0), 9) >= np.round(bbox, 9)
     ):  # cant have atom right on cell edge
-        for i in range(len(use_pbcs)):
+        for i in range(len(pbcs)):
             if bbox_np_pbcs[i] != 0:
                 bbox_np_pbcs += 1e-9
     tree_all = KDTree(atoms.positions, copy_data=True, boxsize=bbox_np_pbcs)
@@ -435,7 +434,7 @@ def quick_rdf(
         np.sum(atoms.cell[:, 0] * np.cross(atoms.cell[:, 1], atoms.cell[:, 2]))
     )
     dens = atoms.positions.shape[0] / volume
-    print("atomic density = " + str(np.round(dens, 5)))
+    # print("atomic density = " + str(np.round(dens, 5)))
 
     ### making big arrays that will be filled
     batch_size = 1
@@ -443,25 +442,24 @@ def quick_rdf(
     maxval_n = int(1.25 * natoms_dens**2)
     vals = np.zeros(maxval_n * batch_size).astype("int")
     maxinds = max([len(i) for i in inds_all])
-    inds2 = np.zeros((batch_size, maxinds)).astype("int")
 
     # loop over all atoms
     count = 0
     # for a0 in range(0,atoms.positions.shape[0],skip):
 
-    for a0 in range(len(center_inds_skip)):
+    for a0 in tqdm(range(len(center_inds_skip))):
         count += 1
 
         inds = inds_all[a0]
-        if np.any(use_pbcs):
-            dr = get_dists_pbcs(
+        if np.any(pbcs):
+            drs = get_dists_pbcs(
                 atoms.positions[inds, :],
                 atoms.positions[center_inds_skip[a0], :],
                 bbox,
-                use_pbcs,
+                pbcs,
             )
         else:
-            dr = np.sqrt(
+            drs = np.sqrt(
                 np.sum(
                     (
                         atoms.positions[inds, :]
@@ -472,7 +470,7 @@ def quick_rdf(
                 )
             )
 
-        r_ind = dr / hist_dr
+        r_ind = drs / dr
         r_floor = np.floor(r_ind).astype("int")
         dr_ind = r_ind - r_floor
 
@@ -496,21 +494,11 @@ def quick_rdf(
     hist_sig[0] = 0
 
     gr = hist_sig.copy()
-    gr[1:] /= (hist_dr * dens * 4 * np.pi) * hist_r[1:] ** 2
+    gr[1:] /= (dr * dens * 4 * np.pi) * hist_r[1:] ** 2
 
     if renormalize_reduced_pdf:
         scale = np.sum(gr * hist_r) / np.sum(hist_r)
         gr /= scale
-
-    if plot_result:
-        fig, ax = plt.subplots(figsize=(8, 3))
-
-        ax.plot(
-            hist_r,
-            gr,
-        )
-        ax.set_ylabel("g(r)")
-        ax.set_xlabel("r (A)")
 
     return hist_r, hist_sig, gr
 
