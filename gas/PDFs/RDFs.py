@@ -6,6 +6,7 @@ from multiprocessing import Pool
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import KDTree
+from tqdm import tqdm
 
 try:
     import cupy as cp
@@ -190,9 +191,11 @@ class RDF(object):
 
         cp.cuda.Stream.null.synchronize()
 
-        gr = hist_sig.sum(axis=0)
+        gr = xp.copy(hist_sig[:,:-1]).sum(axis=0)
+        rr = rr[:-1]
+
+        gr /= num_centers
         if reduced:
-            gr /= num_centers
             gr[0] = 0
             gr[1:] /= (dr * dens * 4 * np.pi) * rr[1:] ** 2
 
@@ -204,7 +207,7 @@ class RDF(object):
         vprint(f"Center atoms per sec: {len(center_inds_skip) / ttime:_.2f}\n")
         return rr, gr
 
-    def _rdf_old(
+    def rdf_cpu(
         self,
         atoms,
         dr=0.1,
@@ -214,8 +217,14 @@ class RDF(object):
         v=None,
         pbcs=None,
         reduced=True,
+        force_GPU = False,
     ):
-        xp = self._xp
+        if self.device != "cpu" and not force_GPU:
+            print("Will run with CPU because this is normally faster.")
+            print("can override with force_GPU=True")
+            xp = np
+        else:
+            xp = self._xp
         stime = time.perf_counter()
         v = self._v if v is None else v
         vprint = print if v >= 1 else lambda *a, **k: None
@@ -247,6 +256,7 @@ class RDF(object):
         center_inds = np.where(goods)[0]
 
         ### KD tree for getting neighbors, cpu cuz faster
+        vprint("starting KD Tree")
         start_KD = time.perf_counter()
         bbox_np_pbcs = bbox_np * pbcs_np
         if np.any(
@@ -294,9 +304,9 @@ class RDF(object):
             )
         # vprint(f'atomic density = {dens:.3} atoms / A^3')
         num_bins = hist_sig.shape[0]
-        vprint("Final shape will be: ", hist_sig.shape)
+        # vprint("Final shape will be: ", hist_sig[:-1].shape)
 
-        for a0 in range(0, num_centers, batch_size):
+        for a0 in tqdm(range(0, num_centers, batch_size)):
             b0 = min(a0 + batch_size, num_centers)
             batch_center_inds = center_inds_skip[a0:b0]
             bsize = len(batch_center_inds)
@@ -311,6 +321,7 @@ class RDF(object):
                 positions[inds2[:bsize]],
                 bbox=bbox,
                 pbcs=pbcs,
+                xp=xp,
             )
 
             for i in range(bsize):
@@ -345,9 +356,9 @@ class RDF(object):
 
         gr = xp.copy(hist_sig[:-1])
         rr = rr[:-1]
+        gr /= num_centers
 
         if reduced:
-            gr /= num_centers
             gr[0] = 0
             gr[1:] /= (dr * dens * 4 * np.pi) * rr[1:] ** 2
 
@@ -359,8 +370,9 @@ class RDF(object):
         vprint(f"Center atoms per sec: {num_centers / ttime:.1f}\n")
         return rr, gr
 
-    def _get_dists_pbcs(self, points, pointslists, bbox, pbcs=[1, 1, 1]):
-        xp = self._xp
+    def _get_dists_pbcs(self, points, pointslists, bbox, pbcs=[1, 1, 1], xp=None):
+        if xp is None:
+            xp = self._xp
         if np.any(pbcs):
             assert xp.all(xp.min(pointslists, axis=1) >= 0)
             assert xp.all(

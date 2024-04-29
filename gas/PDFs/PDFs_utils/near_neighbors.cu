@@ -35,61 +35,22 @@ __global__ void find_neighbors(int* poslist_round, \
         // centerpoints are given here. doesn't hurt to have em tho.
         for (int i=-1*search_rad; i<=search_rad; i++){
             mod_ind_x = cpos[0] + i;
-            if (mod_ind_x < 0){
-                if (pbcs[0]) {
-                    mod_ind_x += volume_shape[0];
-                }
-                else {
-                    continue;
-                }
-            }
-            else if (mod_ind_x >= volume_shape[0]){
-                if (pbcs[0]) {
-                    mod_ind_x -= volume_shape[0];
-                }
-                else {
-                    continue;
-                }
+            if (pbcs[0]) {
+                mod_ind_x = ((mod_ind_x % volume_shape[0]) + volume_shape[0]) % volume_shape[0]; // true modulo (python like)
             }
             mod_ind_x = mod_ind_x * volume_shape[2] * volume_shape[1];
 
             for (int j=-1*search_rad; j<=search_rad; j++){
                 mod_ind_y = cpos[1] + j;
-                if (mod_ind_y < 0){
-                    if (pbcs[1]) {
-                        mod_ind_y += volume_shape[1];
-                    }
-                    else {
-                        continue;
-                    }
-                }
-                else if (mod_ind_y >= volume_shape[1]){
-                    if (pbcs[1]) {
-                        mod_ind_y -= volume_shape[1];
-                    }
-                    else {
-                        continue;
-                    }
+                if (pbcs[1]) {
+                    mod_ind_y = ((mod_ind_y % volume_shape[1]) + volume_shape[1]) % volume_shape[1];
                 }
                 mod_ind_y = mod_ind_y * volume_shape[2];
 
                 for (int k=-1*search_rad; k<=search_rad; k++){
                     mod_ind_z = cpos[2] + k;
-                    if (mod_ind_z < 0){
-                        if (pbcs[2]) {
-                            mod_ind_z += volume_shape[2];
-                        }
-                        else {
-                            continue;
-                        }
-                    }
-                    else if (mod_ind_z >= volume_shape[2]){
-                        if (pbcs[2]) {
-                            mod_ind_z -= volume_shape[2];
-                        }
-                        else {
-                            continue;
-                        }
+                    if (pbcs[2]) {
+                        mod_ind_z = ((mod_ind_z % volume_shape[2]) + volume_shape[2]) % volume_shape[2];
                     }
 
                     vol_ind = mod_ind_x + mod_ind_y + mod_ind_z;
@@ -99,6 +60,7 @@ __global__ void find_neighbors(int* poslist_round, \
                         num_neighbors++;
                         if (num_neighbors > Nmax_neighbors){
                             printf("MAX NEIGHBORS LIMIT REACHED. DECREASE dr_ind OR DECREASE R_max\n");
+                            break;
                         }
                     }
                 }
