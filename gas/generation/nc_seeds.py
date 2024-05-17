@@ -8,7 +8,7 @@ from czone.molecule import Molecule
 from pymatgen.core import Structure
 
 from utils import (
-    get_cell_info,
+    fix_xyz_header,
     load_and_prepare_xyz,
     get_nanocrystalline_grains,
     orient_and_shift_grain,
@@ -79,6 +79,7 @@ def get_nanocrystal_seeds(
 
 def add_seeds_to_amorphous_block(
     atoms,
+    cell_data,
     pbc,
     rng=np.random.default_rng(),
     return_seeds=False,
@@ -88,12 +89,17 @@ def add_seeds_to_amorphous_block(
     """Starting with a given amorphous block, add in crystalline seeds."""
 
     ## Create a molecular generator with a box domain for the starting block
-    domain = tuple(np.diag(atoms.get_cell()))
-    block_domain = makeRectPrism(*np.diag(atoms.get_cell()))
+    domain = {k:v for k, v in zip(('a', 'b', 'c'), tuple(np.diag(atoms.get_cell())))}
+
+    block_domain = makeRectPrism(**domain)
+    block_domain += cell_data['cell_orig']
+
+    domain['center'] = np.mean(block_domain, axis=0)
 
     amor_atoms = Molecule.from_ase_atoms(atoms)
     amor_block = Volume(points=block_domain, generator=amor_atoms)
     amor_block.priority = 1
+
 
     ## get nanocrystalline seeds
     print("Sampling nanocrystalline seeds")
@@ -104,7 +110,7 @@ def add_seeds_to_amorphous_block(
 
     ## Combine into scene and generate atoms
     scene = PeriodicScene(
-        domain_cell=Voxel(atoms.get_cell()),
+        domain_cell=Voxel(atoms.get_cell(), origin=cell_data['cell_orig']),
         objects=[amor_block] + seed_grains,
         pbc=pbc,
     )
@@ -125,8 +131,9 @@ def add_seeds_to_amorphous_block(
 
 def main():
     ## This will throw an error until in_file is updated
-    in_file = Path("Si_melt.xyz")
-    starting_block = load_and_prepare_xyz(in_file)
+    in_file = Path("SiO2_1200K_amp.xyz")
+    out_file = Path("SiO_seed_test.xyz")
+    starting_block, cell_data = load_and_prepare_xyz(in_file)
 
     ## Set up the seed generation
     crystal_cif = Path("example_files/mp-149_as_Au.cif")
@@ -136,18 +143,22 @@ def main():
         "min_dist": 8,  # minimum distance between seed centers, in angstroms
         "N_seeds": 8,  # maximum number of seeds to include
         "density": 1e-3,  # number density of seed centers, in N * angstrom ^ -3
-        "tolerance": 1.0,  # amount of excess space to exclude orig liquid atoms from
+        # "tolerance": 1.0,  # amount of excess space to exclude orig liquid atoms from
         "return_seeds": (
             return_seeds := True
         ),  # also return a scene with just the seed grains
     }
 
     if return_seeds:
-        block_with_seeds, seeds = add_seeds_to_amorphous_block(starting_block, **config)
+        block_with_seeds, seeds = add_seeds_to_amorphous_block(starting_block, cell_data, **config)
         seeds.to_file("SiO_seeds.xyz")
     else:
-        block_with_seeds = add_seeds_to_amorphous_block(starting_block, **config)
-    block_with_seeds.to_file("SiO_seed_test.xyz")
+        block_with_seeds = add_seeds_to_amorphous_block(starting_block, cell_data, **config)
+    block_with_seeds.to_file("SiO_seed_test.xyz", )
+
+    fix_xyz_header(out_file, in_file)
+
+
 
 
 if __name__ == "__main__":
