@@ -390,7 +390,6 @@ class RDF(object):
 
 def quick_rdf(
     atoms,
-    dr_ind=1.5,
     skip=1,
     hist_r_max=10.0,
     dr=0.05,
@@ -405,8 +404,6 @@ def quick_rdf(
 
     # Construct index volume
     bbox = atoms.cell[(0, 1, 2), (0, 1, 2)]
-    vol_size = np.round(bbox / dr_ind).astype("int")
-    dr_ind = bbox / vol_size
 
     # Histogram coordinates
     hist_r = np.arange(0.0, hist_r_max, dr)
@@ -423,6 +420,7 @@ def quick_rdf(
                 bbox_np_pbcs += 1e-9
     tree_all = KDTree(atoms.positions, copy_data=True, boxsize=bbox_np_pbcs)
     center_inds_skip = np.arange(len(atoms.positions))[::skip]
+    num_centers = len(center_inds_skip)
     tree_centers = KDTree(
         atoms.positions[center_inds_skip], copy_data=True, boxsize=bbox_np_pbcs
     )
@@ -436,19 +434,7 @@ def quick_rdf(
     dens = atoms.positions.shape[0] / volume
     # print("atomic density = " + str(np.round(dens, 5)))
 
-    ### making big arrays that will be filled
-    batch_size = 1
-    natoms_dens = (4 / 3 * np.pi * hist_r_max**3) * dens
-    maxval_n = int(1.25 * natoms_dens**2)
-    vals = np.zeros(maxval_n * batch_size).astype("int")
-    maxinds = max([len(i) for i in inds_all])
-
-    # loop over all atoms
-    count = 0
-    # for a0 in range(0,atoms.positions.shape[0],skip):
-
-    for a0 in tqdm(range(len(center_inds_skip))):
-        count += 1
+    for a0 in tqdm(range(num_centers)):
 
         inds = inds_all[a0]
         if np.any(pbcs):
@@ -475,11 +461,6 @@ def quick_rdf(
         dr_ind = r_ind - r_floor
 
         sub = r_floor < num_bins
-
-        good_vals = r_floor > 0
-        nvals = good_vals.sum()
-        vals[:nvals] = r_floor[good_vals]
-
         hist_sig += np.bincount(
             r_floor[sub], weights=(1 - dr_ind[sub]), minlength=num_bins
         )
@@ -489,7 +470,7 @@ def quick_rdf(
             r_floor[sub] + 1, weights=dr_ind[sub], minlength=num_bins
         )
 
-    hist_sig /= count
+    hist_sig /= num_centers
 
     hist_sig[0] = 0
 
