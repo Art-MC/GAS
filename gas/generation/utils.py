@@ -9,6 +9,7 @@ from czone.volume import Volume, makeRectPrism, Plane
 from czone.generator import AmorphousGenerator
 from czone.transform import Rotation, rot_vtv, rot_v
 
+import fileinput
 
 def get_cell_info(fp):
     with open(fp, 'r') as f:
@@ -28,14 +29,13 @@ def get_cell_info(fp):
 
 def load_and_prepare_xyz(fp, fold_positions=True):
     cell_data = get_cell_info(fp)
-    if not np.array_equal(cell_data['cell_orig'], np.zeros(3)):
-        raise NotImplementedError("Handling non-zero origin is not yet implemented.")
+    # if not np.array_equal(cell_data['cell_orig'], np.zeros(3)):
+    #     raise NotImplementedError("Handling non-zero origin is not yet implemented.")
     
-    ## Assume cell format is x/y/z orthogonal vectors
-    cell = np.array([cell_data['cell_vec1'][0],
-                     cell_data['cell_vec2'][1],
-                     cell_data['cell_vec3'][2],
-                     ])
+    ## Grab cell vectors 
+    cell = np.array([cell_data['cell_vec1'],
+                    cell_data['cell_vec2'],
+                    cell_data['cell_vec3']])
     
     ## Read atoms and set cell domain
     atoms = ase.io.read(fp, format='xyz')
@@ -44,14 +44,25 @@ def load_and_prepare_xyz(fp, fold_positions=True):
 
     if fold_positions:
         ## Fold atoms into periodic cell
-        pos = atoms.get_positions()
-        for i, (pbc, dim) in enumerate(zip(atoms.get_pbc(), cell)):
-            if pbc:
-                pos[:, i] = np.mod(pos[:, i], dim)
+        # TODO: check semantic equivalence with PeriodicScene wrapping--ASE has a target to move atoms to a target (fractional) center
+        atoms.wrap(eps=0.0)
+        atoms.set_positions(atoms.get_positions() + cell_data['cell_orig'])
 
-        atoms.set_positions(pos)
+    return atoms, cell_data
 
-    return atoms
+def fix_xyz_header(fp, source_fp):
+    """Replace ASE's xyz header from nc_seed output with LAMMPS-generated header, which includes origin information"""
+    with open(source_fp, 'r') as source_f:
+        source_header = source_f.readlines()[1]
+
+    ## Replace just the header info
+    with fileinput.input(fp, inplace=True) as target_f:
+        for i, line in enumerate(target_f):
+            if i == 1:
+                # Print redirects here to the file stream, within the context block
+                print(source_header, end='')
+            else:
+                print(line, end='')
 
 def write_dataset_to_h5(fp, arr, dataset_key, metadata, chunks=True):
     with h5py.File(fp, mode="w") as f:
@@ -136,7 +147,7 @@ def get_voronoi_cells(min_dist, density, domain, buffer_size=20):
     ## Sample a low density set of points in the target domain
     # We use these points to calculate a feasible Voronoi region
     # which we use as the grains of the nanocrystallites
-    box = makeRectPrism(*domain)
+    box = makeRectPrism(**domain)
     vor_gen = AmorphousGenerator(min_dist=min_dist, density=density)
     vor_obj = Volume(points=box, generator=vor_gen)
     vor_obj.populate_atoms(print_progress=False)
@@ -144,7 +155,7 @@ def get_voronoi_cells(min_dist, density, domain, buffer_size=20):
     vor_points = vor_obj.atoms
 
     ## Augment points with periodic images
-    faces, corners = get_periodic_images(vor_points, domain, buffer_size)
+    faces, corners = get_periodic_images(vor_points, [domain[k] for k in 'abc'], buffer_size)
     all_points = np.vstack([vor_points] + faces + corners)
 
     ## Calculate Voronoi tesselation
@@ -215,6 +226,7 @@ def get_nanocrystalline_grains(min_dist, density, domain):
 
     ## Create a set of volumes utilizing each facets by Voronoi region
     # we have to add the top/bottom faces, since we are only periodic in x/y
-    topbottom = [Plane((0,0,1), (0,0,domain[2])), Plane((0,0,-1), (0,0,0))]
+    origin = domain['center'] - np.array([domain['a'], domain['b'], domain['c']])/2 
+    topbottom = [Plane((0,0,1), origin+np.array([0,0,domain['c']])), Plane((0,0,-1), origin)]
 
     return [Volume(alg_objects=p + topbottom) for p in plane_sets.values()]
