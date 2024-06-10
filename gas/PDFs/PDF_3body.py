@@ -8,7 +8,7 @@ try:
     import cupy as cp
 except (ImportError, ModuleNotFoundError):
     cp = np
-
+from tqdm import tqdm
 
 class PDF3B(object):
 
@@ -33,6 +33,7 @@ class PDF3B(object):
         v=None,
         pbcs=None,
         subpixel_weights=True,
+        pbar=True,
     ):
         xp = self._xp
         stime = time.perf_counter()
@@ -127,7 +128,7 @@ class PDF3B(object):
         # vprint(f'atomic density = {dens:.3} atoms / A^3')
         vprint("Final shape will be: ", hist_sig.shape)
 
-        for a0 in range(0, len(center_inds_skip), batch_size):
+        for a0 in tqdm(range(0, len(center_inds_skip), batch_size), disable=not pbar):
             b0 = min(a0 + batch_size, len(center_inds_skip))
             batch_center_inds = center_inds_skip[a0:b0]
             bsize = len(batch_center_inds)
@@ -241,7 +242,7 @@ class PDF3B(object):
             assert xp.all(xp.min(pointslists, axis=1) >= 0)
             assert xp.all(xp.max(pointslists, axis=1) <= bbox)
         assert xp.issubdtype(
-            pointslists, float
+            pointslists.dtype, float
         ), f"pointslists type: {pointslists.dtype}"
         dif = pointslists - points[:, None]
         for i, ind in enumerate(pbcs):

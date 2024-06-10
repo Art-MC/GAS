@@ -12,8 +12,6 @@ try:
     import cupy as cp
     from .PDFs_utils.kernels import kernels
 except (ImportError, ModuleNotFoundError) as e:
-    print("Cupy is required")
-    raise e
     cp = np
 
 
