@@ -49,7 +49,8 @@ class RDF(object):
             pbcs = atoms.get_pbc()
         self.pbcs = pbcs
 
-        bbox_np = np.array(atoms.cell[(0, 1, 2), (0, 1, 2)])
+        bbox_np, volume = self._get_bbox_volume_from_cell(atoms.cell)
+        volume = xp.array(volume)
         pbcs_np = np.copy(pbcs)
         pbcs = xp.array(pbcs).astype("bool")
         positions = xp.array(atoms.positions, dtype=cp.float64)
@@ -84,22 +85,26 @@ class RDF(object):
         hist_sig = xp.zeros((histo_height, numbins), dtype=xp.float64)
 
         ### Density
-        cell = xp.array(atoms.cell)
-        volume = xp.abs(xp.sum(cell[:, 0] * xp.cross(cell[:, 1], cell[:, 2])))
         dens = positions.shape[0] / volume
         r_vol = 4 * np.pi * hist_r_max**3
         ave_neighbors = dens * r_vol
 
         ### setup volume
-        vol_size = np.round(bbox_np / dr_ind).astype('int')
-        scaled_dr_ind = bbox_np / vol_size
-        x_inds = np.mod(np.round(atoms.positions[:,0] / scaled_dr_ind[0]).astype('int'), vol_size[0])
-        y_inds = np.mod(np.round(atoms.positions[:,1] / scaled_dr_ind[1]).astype('int'), vol_size[1])
-        z_inds = np.mod(np.round(atoms.positions[:,2] / scaled_dr_ind[2]).astype('int'), vol_size[2])
+        _setup_running = True
+        while _setup_running:
+            vol_size = np.round(bbox_np / dr_ind).astype('int')
+            scaled_dr_ind = bbox_np / vol_size
+            x_inds = np.mod(np.round(atoms.positions[:,0] / scaled_dr_ind[0]).astype('int'), vol_size[0])
+            y_inds = np.mod(np.round(atoms.positions[:,1] / scaled_dr_ind[1]).astype('int'), vol_size[1])
+            z_inds = np.mod(np.round(atoms.positions[:,2] / scaled_dr_ind[2]).astype('int'), vol_size[2])
 
-        vol = -1*np.ones(vol_size,dtype='int')
-        vol[x_inds,y_inds,z_inds] = np.arange(atoms.positions.shape[0])
-        assert(len(np.unique(vol)) == len(atoms.positions)+1), f"Try reducing dr_ind"
+            vol = -1*np.ones(vol_size,dtype='int')
+            vol[x_inds,y_inds,z_inds] = np.arange(atoms.positions.shape[0])
+            if len(np.unique(vol)) == len(atoms.positions)+1:
+                _setup_running = False
+            else:
+                print(f"reducing dr_ind from {dr_ind} -> {dr_ind/2}")
+                dr_ind /= 2
 
         vprint(f"Num total atoms in sim = {len(positions)}")
         if not np.all(pbcs):
@@ -232,7 +237,7 @@ class RDF(object):
             pbcs = atoms.get_pbc()
         self.pbcs = pbcs
 
-        bbox_np = np.array(atoms.cell[(0, 1, 2), (0, 1, 2)])
+        bbox_np, volume = self._get_bbox_volume_from_cell(atoms.cell)
         bbox = xp.array(bbox_np, dtype=cp.float64)
         pbcs_np = np.copy(pbcs)
         pbcs = xp.array(pbcs).astype("bool")
@@ -280,8 +285,6 @@ class RDF(object):
         hist_sig = xp.zeros_like(rr)
 
         ### Density
-        cell = xp.array(atoms.cell)
-        volume = xp.abs(xp.sum(cell[:, 0] * xp.cross(cell[:, 1], cell[:, 2])))
         dens = positions.shape[0] / volume
 
         ### making big arrays that will be filled
@@ -304,7 +307,7 @@ class RDF(object):
         num_bins = hist_sig.shape[0]
         # vprint("Final shape will be: ", hist_sig[:-1].shape)
 
-        for a0 in tqdm(range(0, num_centers, batch_size)):
+        for a0 in tqdm(range(0, num_centers, batch_size), disable=v<=0):
             b0 = min(a0 + batch_size, num_centers)
             batch_center_inds = center_inds_skip[a0:b0]
             bsize = len(batch_center_inds)
@@ -384,6 +387,15 @@ class RDF(object):
             if ind:
                 abs[:, :, i] = xp.minimum(abs[:, :, i], bbox[i] - abs[:, :, i])
         return np.sqrt(np.sum(abs**2, axis=-1))
+
+    def _get_bbox_volume_from_cell(self, cell):
+        if np.ndim(cell) == 2:
+            bbox = np.array(cell[(0, 1, 2), (0, 1, 2)])
+            volume = np.abs(np.sum(cell[:, 0] * np.cross(cell[:, 1], cell[:, 2])))
+        elif np.ndim(cell) == 1:
+            bbox = cell
+            volume = cell[0] * cell[1] * cell[2]
+        return bbox, volume
 
 
 def quick_rdf(
