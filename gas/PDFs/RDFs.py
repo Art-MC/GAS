@@ -21,8 +21,13 @@ class RDF(object):
         if isinstance(device, int):
             self._xp = cp
             cp.cuda.runtime.setDevice(device)
-        elif device.lower() == "cpu":
-            self._xp = np
+        elif isinstance(device, str):
+            if device.lower() == "cpu":
+                self._xp = np
+            elif device.lower() == "gpu":
+                self._xp = cp
+        else:
+            raise ValueError(f"unknown device {device}")
         self.device = device
         self._v = v
         return
