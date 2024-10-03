@@ -22,7 +22,7 @@ __global__ void rdf(double* poslist, \
         int ind_1 = center_poslist_inds[ind_0]*Dim; // position_index of center
         int ind_2 = neighbor_poslist_inds[tid]*Dim; // position index of neighbor
         if (ind_2<0){
-            printf("BAD VALUE\n");
+            printf("BAD VALUE rdf.cu\n");
         }
         for (int i=0; i<Dim; i++){
             dist_i = fabs(poslist[ind_1+i] - poslist[ind_2+i]);

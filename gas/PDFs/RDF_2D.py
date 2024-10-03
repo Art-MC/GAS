@@ -287,10 +287,12 @@ class RDF_2D(object):
         thk: slice thickness used for the 2D RDF
         """
         dx = xarr[1] - xarr[0]
-        xvals = xarr + dx/2 # integrated value heavily dependent on this offset
+        # padding so don't have normalization blowups at the large r edge
+        xarr_larger = np.linspace(0, xarr[-1]+10*dx, len(xarr)+10)
+        xvals = xarr_larger + dx/2 # integrated value heavily dependent on this offset
         rdf_2D_to_3D = []
 
-        for rval in tqdm(xarr, disable=v<=0):
+        for rval in tqdm(xarr_larger, disable=v<=0):
             shifts = self.non_uniform_pdf_transform(rval, xvals, thk)
             # normalization is heavily dependent on the precise x values used due to integrating over
             # the asymptote. So correcting manually here.
@@ -299,8 +301,7 @@ class RDF_2D(object):
             norm = norm if norm != 0 else 1
             rdf_2D_to_3D.append(shifts/norm)
 
-        rdf_2D_to_3D = self._xp.array(rdf_2D_to_3D)
-
+        rdf_2D_to_3D = self._xp.array(rdf_2D_to_3D)[:len(xarr), :len(xarr)]
         return rdf_2D_to_3D
 
     # @staticmethod

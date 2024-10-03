@@ -11,8 +11,10 @@ from tqdm import tqdm
 try:
     import cupy as cp
     from .PDFs_utils.kernels import kernels
+    get_array_module = cp.get_array_module
 except (ImportError, ModuleNotFoundError) as e:
     cp = np
+    get_array_module = lambda *args, **kwargs: np
 
 
 class RDF(object):
@@ -105,10 +107,12 @@ class RDF(object):
 
             vol = -1*np.ones(vol_size,dtype='int')
             vol[x_inds,y_inds,z_inds] = np.arange(atoms.positions.shape[0])
-            if len(np.unique(vol)) == len(atoms.positions)+1:
+            # smaller val will mean more precise, but only in cases where there are atoms that are
+            # really really close, which aren't normally physical
+            if len(np.unique(vol)) == len(atoms.positions)+1 or dr_ind < 0.5:
                 _setup_running = False
             else:
-                print(f"reducing dr_ind from {dr_ind} -> {dr_ind/2}")
+                vprint(f"reducing dr_ind from {dr_ind} -> {dr_ind/2}")
                 dr_ind /= 2
 
         vprint(f"Num total atoms in sim = {len(positions)}")
@@ -153,51 +157,56 @@ class RDF(object):
         threads_RDF = (kernel_RDF.max_threads_per_block,)
         blocks_RDF = (cp.size(neighbors_inds_cp) // threads_RDF[0] + 1,)
 
-        for a0 in range(0, num_centers, batch_size):
-            b0 = min(a0 + batch_size, num_centers)
-            batch_center_inds = cp.array(center_inds_skip[a0:b0], dtype=cp.int64)
-            cbatch_size = b0 - a0
+        compute_stream = cp.cuda.stream.Stream(non_blocking=True)
+        # may be incorrect
+        # see: https://stackoverflow.com/questions/64581056/how-to-properly-use-cupy-streams
+        with compute_stream:
+            for a0 in range(0, num_centers, batch_size):
+                b0 = min(a0 + batch_size, num_centers)
+                batch_center_inds = cp.array(center_inds_skip[a0:b0], dtype=cp.int64)
+                cbatch_size = b0 - a0
 
-            ### get nearest neighbors for this batch
-            kernel_NN(
-                blocks_NN,
-                threads_NN,
-                (
-                    positions_round_cp,
-                    volume_inds_cp,
-                    volume_shape_cp,
-                    search_rad,
-                    batch_center_inds,
-                    neighbors_inds_cp,
-                    neighbors_num_cp,
-                    int(N_max_neighbors),
-                    int(cbatch_size),
-                    int(Dim),
-                    pbcs_cp,
-                ),
-            )
+                ### get nearest neighbors for this batch
+                kernel_NN(
+                    blocks_NN,
+                    threads_NN,
+                    (
+                        positions_round_cp,
+                        volume_inds_cp,
+                        volume_shape_cp,
+                        search_rad,
+                        batch_center_inds,
+                        neighbors_inds_cp,
+                        neighbors_num_cp,
+                        int(N_max_neighbors),
+                        int(cbatch_size),
+                        int(Dim),
+                        pbcs_cp,
+                    ),
+                )
 
-            ### calculate RDF contribution for batch
-            kernel_RDF(
-                blocks_RDF,
-                threads_RDF,
-                (
-                    positions_cp,
-                    batch_center_inds,
-                    neighbors_inds_cp,
-                    neighbor_poslist_shape,
-                    cbatch_size,
-                    int(Dim),
-                    hist_sig,
-                    int(histo_height),
-                    int(numbins),
-                    float(dr),
-                    bbox_cp,
-                    pbcs_cp,
-                ),
-            )
+                ### calculate RDF contribution for batch
+                kernel_RDF(
+                    blocks_RDF,
+                    threads_RDF,
+                    (
+                        positions_cp,
+                        batch_center_inds,
+                        neighbors_inds_cp,
+                        neighbor_poslist_shape,
+                        cbatch_size,
+                        int(Dim),
+                        hist_sig,
+                        int(histo_height),
+                        int(numbins),
+                        float(dr),
+                        bbox_cp,
+                        pbcs_cp,
+                    ),
+                )
 
-        cp.cuda.Stream.null.synchronize()
+        # cp.cuda.Stream.null.synchronize()
+        compute_stream.synchronize()
 
         gr = xp.copy(hist_sig[:,:-1]).sum(axis=0)
         rr = rr[:-1]

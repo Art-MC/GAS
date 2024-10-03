@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from gas.PDFs.PDFs_utils.cmap import get_cmap, shift_cmap_center
 
 
 def plot_RDF3b(
@@ -14,7 +15,7 @@ def plot_RDF3b(
     title=None,
     cbar=False,
     aspect=None,
-    intensity_range = "ordered",
+    intensity_range="ordered",
     vmin=None,
     vmax=None,
     **kwargs,
@@ -27,11 +28,10 @@ def plot_RDF3b(
 
     # alias
     r_slices = kwargs.pop("r_slice", None) if r_slices is None else r_slices
-    theta_slices = (
-        kwargs.pop("theta_slice", None) if theta_slices is None else theta_slices
-    )
+    theta_slices = kwargs.pop("theta_slice", None) if theta_slices is None else theta_slices
 
-    cmap = kwargs.pop("cmap", "magma")
+    cmap_str = kwargs.pop("cmap", "magma")
+    cmap = cmap_str
     origin = kwargs.pop("origin", "lower")
     if aspect is None:
         aspect = "auto"
@@ -69,9 +69,9 @@ def plot_RDF3b(
             int_slices = np.round(np.array(val_slices) / dind).astype("int")
             ind_slices = np.array([[sl, sl + 1] for sl in int_slices])
         elif np.ndim(val_slices) == 2:
-            ind_slices = np.array(
-                [np.round(np.array(sl) / dind) for sl in val_slices]
-            ).astype("int")
+            ind_slices = np.array([np.round(np.array(sl) / dind) for sl in val_slices]).astype(
+                "int"
+            )
 
     ncols = len(ind_slices)
     figsize = kwargs.pop("figsize", (ncols * 4 * aspect_num, 3))
@@ -114,7 +114,14 @@ def plot_RDF3b(
         else:
             vmin_ax, vmax_ax = vmin, vmax
 
-        im = ax.matshow(gslice, cmap=cmap, origin=origin, aspect=aspect, vmin=vmin_ax, vmax=vmax_ax, **kwargs)
+        if kwargs.get("cmap_midpoint", None) is not None:
+            orig_cmap = get_cmap(cmap_str)
+            mp = kwargs.get("cmap_midpoint")
+            cmap = shift_cmap_center(orig_cmap, midpointval=mp, vmin=vmin_ax, vmax=vmax_ax)
+
+        im = ax.matshow(
+            gslice, cmap=cmap, origin=origin, aspect=aspect, vmin=vmin_ax, vmax=vmax_ax, #**kwargs
+        )
         ax.set_xlabel(f"r1 (A)")
         ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(yformatter))
         ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(rFormatter))
@@ -122,7 +129,9 @@ def plot_RDF3b(
         ax.tick_params(direction="out")
 
         if cbar:
-            cax = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=str(kwargs.get("cbar_title", "")))
+            cax = fig.colorbar(
+                im, ax=ax, fraction=0.046, pad=0.04, label=str(kwargs.get("cbar_title", ""))
+            )
 
     fig.subplots_adjust(wspace=0.35 if cbar else 0.15)
 
@@ -131,7 +140,19 @@ def plot_RDF3b(
 
     return
 
-def plot_r1r2_RDF3b(gr, dtheta, dr, log=False, title="", cbar=False, aspect=None, intensity_range="ordered", **kwargs):
+
+def plot_r1r2_RDF3b(
+    gr,
+    dtheta,
+    dr,
+    log=False,
+    title="",
+    cbar=False,
+    aspect=None,
+    intensity_range="ordered",
+    return_figax = False,
+    **kwargs,
+):
     "theta_slice and r_slice given in deg and angstroms respectively"
 
     def rFormatter(x, pos):
@@ -145,13 +166,15 @@ def plot_r1r2_RDF3b(gr, dtheta, dr, log=False, title="", cbar=False, aspect=None
 
     gr_r1r2 = np.array([np.diag(gr[i]) for i in range(gr.shape[0])])
     if log:
-        _mask = gr_r1r2 > 0.0
-        gr_r1r2[_mask] = np.log(gr_r1r2[_mask])
-        gr_r1r2[~_mask] = 0
+        gr_r1r2 += 1
+        gr_r1r2 = np.log(gr_r1r2)
+        # _mask = gr_r1r2 > 0.0
+        # gr_r1r2[_mask] = np.log(gr_r1r2[_mask])
+        # gr_r1r2[~_mask] = 0
 
     if aspect is None:
         aspect = gr_r1r2.shape[0] / gr_r1r2.shape[1]
-    fig, ax = plt.subplots(figsize=kwargs.pop("figsize", (5, 5*aspect)))
+    fig, ax = plt.subplots(figsize=kwargs.pop("figsize", (5, 5 * aspect)))
 
     if intensity_range == "ordered":
         vmin = kwargs.pop("vmin", 0.001)
@@ -164,8 +187,13 @@ def plot_r1r2_RDF3b(gr, dtheta, dr, log=False, title="", cbar=False, aspect=None
         vmin_ax = vals[ind_vmin]
         vmax_ax = vals[ind_vmax]
     else:
-        vmin_ax = kwargs.pop("vmin", None)
-        vmax_ax = kwargs.pop("vmax", None)
+        vmin_ax = kwargs.pop("vmin", gr_r1r2.min())
+        vmax_ax = kwargs.pop("vmax", gr_r1r2.max())
+
+    if kwargs.get("cmap_midpoint", None) is not None:
+        orig_cmap = get_cmap(cmap)
+        mp = kwargs.pop("cmap_midpoint")
+        cmap = shift_cmap_center(orig_cmap, midpointval=mp, vmin=vmin_ax, vmax=vmax_ax)
 
     im = ax.matshow(gr_r1r2, cmap=cmap, origin=origin, vmin=vmin_ax, vmax=vmax_ax, **kwargs)
     ax.set_ylabel(f"$\\theta$ (deg)")
@@ -183,6 +211,8 @@ def plot_r1r2_RDF3b(gr, dtheta, dr, log=False, title="", cbar=False, aspect=None
         c_axis = ax_divider.append_axes("right", size="4%", pad="2%")
         fig.colorbar(im, cax=c_axis, format="%g", label=str(kwargs.pop("cbar_title", "")))
 
-    plt.show()
-    return
-
+    if return_figax:
+        return fig, ax
+    else:
+        plt.show()
+        return

@@ -99,7 +99,7 @@ class PDF3B(object):
 
         ### making big arrays that will be filled
         natoms_dens = (4 / 3 * xp.pi * hist_r_max**3) * dens
-        maxval_n = int(1.25 * natoms_dens**2)
+        maxval_n = int(1.5 * natoms_dens**2)
         vals = xp.zeros((3, maxval_n * batch_size)).astype("float")
         maxinds = max([len(i) for i in inds_all])
         inds2 = xp.zeros((batch_size, maxinds)).astype("int")
@@ -178,6 +178,7 @@ class PDF3B(object):
 
             good_vals = (r_floor1 > 1e-9) & (r_floor2 > 1e-9) & (theta_floor > 0) & (theta_floor < 180)
             nvals = good_vals.sum()
+            assert nvals <= vals.shape[1], f"Size of vals must be increased"
             vals[0, :nvals] = theta_floor[good_vals]
             vals[1, :nvals] = r_floor2[good_vals]
             vals[2, :nvals] = r_floor1[good_vals]
