@@ -269,6 +269,13 @@ class RDF_2D(object):
         if r == 0:
             return np.zeros_like(xarr)
         maxrad = np.sqrt(r**2 + thk**2)
+        dx = xarr[1] - xarr[0]
+        xarr += dx/2 # integrated value heavily dependent on this offset
+        if (maxrad - r) < dx/2: # becomes delta function
+            out = np.zeros_like(xarr)
+            closest = np.argmin(np.abs(xarr-r-dx/2))
+            out[closest] = 1
+            return out
         xarr[xarr==0] = 1e9
         xarr[xarr==r] = 1e9
         zval = np.sqrt(np.abs(xarr**2 - r**2) )
@@ -289,11 +296,10 @@ class RDF_2D(object):
         dx = xarr[1] - xarr[0]
         # padding so don't have normalization blowups at the large r edge
         xarr_larger = np.linspace(0, xarr[-1]+10*dx, len(xarr)+10)
-        xvals = xarr_larger + dx/2 # integrated value heavily dependent on this offset
         rdf_2D_to_3D = []
 
         for rval in tqdm(xarr_larger, disable=v<=0):
-            shifts = self.non_uniform_pdf_transform(rval, xvals, thk)
+            shifts = self.non_uniform_pdf_transform(rval, xarr_larger, thk)
             # normalization is heavily dependent on the precise x values used due to integrating over
             # the asymptote. So correcting manually here.
             # as is, integrates correctly but will be off by factor of dx

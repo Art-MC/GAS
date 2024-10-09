@@ -15,31 +15,34 @@ def load_as_ase_atoms(fp, dkey):
 
     return Atoms(positions=data[:, 1:], numbers=data[:, 0], cell=s)
 
-def load_xyz(f, pbcs=None, filter_pos=[None,None,None], pbc_pad=0, v=1):
+def load_xyz(f, pbcs=None, filter_pos=[None,None,None], pbc_pad=0, v=1, manual_read_header=False):
     if v >= 1:
         print(f"loading file: {f.name}")
     atoms = aio.read(f)
-    with open(f, 'r') as ff:
-        tag = ff.readlines()[1]
-        if pbcs is None:
-            pbcs = tag.split("pbc")[1][2:-2]
-            pbcs = [i=="T" for i in pbcs[::2]]
+    if manual_read_header:
+        with open(f, 'r') as ff:
+            tag = ff.readlines()[1]
+            if pbcs is None:
+                pbcs = tag.split("pbc")[1][2:-2]
+                pbcs = [i=="T" for i in pbcs[::2]]
 
-        cell = tag.split('"')[1]
-        cell = np.fromstring(cell, sep=' ').reshape((3,3))
-        if not np.any(cell):
-            print("unable to find cell, generating from positions")
-            cell = np.max(atoms.positions, axis=0)
-    # wrap positions in x and y but not z
+            cell = tag.split('"')[1]
+            cell = np.fromstring(cell, sep=' ').reshape((3,3))
+            if not np.any(cell):
+                print("unable to find cell, generating from positions")
+                cell = np.max(atoms.positions, axis=0)
+        atoms.set_cell(cell)
+        atoms.set_pbc(pbcs)
+
+    pbcs = atoms.get_pbc()
+    cell = atoms.get_cell()
+    # wrap positions according to pbcs, manually because atoms.wrap() doesn't fix z
     for i in range(len(pbcs)):
         if pbcs[i]:
             atoms.positions[:,i] = atoms.positions[:,i] % cell[i,i]
         else:
             atoms.positions[:,i] -= atoms.positions[:,i].min()
             cell[i,i] = atoms.positions[:,i].max()+1e-9
-
-    atoms.set_cell(cell)
-    atoms.set_pbc(pbcs)
 
     if np.any(filter_pos):
         atoms = filter_atoms_positions(atoms, filter_pos, pbc_pad)
