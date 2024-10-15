@@ -1,12 +1,11 @@
-import sys
-from itertools import repeat
 from pathlib import Path
 
 import numpy as np
-from czone.generator import AmorphousGenerator, Generator
+from czone.generator import Generator, NullGenerator
 from czone.molecule import Molecule
 from czone.scene import PeriodicScene
-from czone.volume import Volume, Voxel, get_bounding_box, makeRectPrism
+from czone.util.voxel import Voxel
+from czone.volume import MultiVolume, Plane, Volume, get_bounding_box, makeRectPrism
 from pymatgen.core import Structure
 from utils import (
     fix_xyz_header,
@@ -58,7 +57,7 @@ def get_nanocrystal_seeds(
 ):
     # Get volumes for seed grains
     all_grains = get_nanocrystalline_grains(
-        min_dist=min_dist, density=density, domain=domain
+        min_dist=min_dist, density=density, domain=domain, rng=rng
     )
     seed_grains = sample_grains(all_grains, min_dist=min_dist, N=N_seeds, rng=rng)
 
@@ -106,10 +105,17 @@ def add_seeds_to_amorphous_block(
         for p in seed.alg_objects:
             p.tol = tolerance
 
+    final_seeds = []
+    for seed in seed_grains:
+        new_ex_grain = Volume(generator=NullGenerator(), priority=1)
+        new_ex_grain.add_alg_object([Plane(p.normal, p.point + p.normal*tolerance ) for p in seed.alg_objects])
+        seed_with_buffer = MultiVolume(volumes=[seed, new_ex_grain], priority=0)
+        final_seeds.append(seed_with_buffer)
+
     ## Combine into scene and generate atoms
     scene = PeriodicScene(
         domain_cell=Voxel(atoms.get_cell(), origin=cell_data['cell_orig']),
-        objects=[amor_block] + seed_grains,
+        objects=[amor_block] + final_seeds,
         pbc=pbc,
     )
 
@@ -118,7 +124,7 @@ def add_seeds_to_amorphous_block(
     if return_seeds:
         grain_scene = PeriodicScene(
             domain_cell=scene.domain_cell,
-            objects=seed_grains,
+            objects=final_seeds,
             pbc=pbc,
         )
         grain_scene.populate()
