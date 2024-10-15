@@ -1,21 +1,19 @@
-import numpy as np
 import sys
+from itertools import repeat
+from pathlib import Path
 
-from czone.volume import Volume, makeRectPrism, get_bounding_box, Voxel
-from czone.scene import PeriodicScene
+import numpy as np
 from czone.generator import AmorphousGenerator, Generator
 from czone.molecule import Molecule
+from czone.scene import PeriodicScene
+from czone.volume import Volume, Voxel, get_bounding_box, makeRectPrism
 from pymatgen.core import Structure
-
 from utils import (
     fix_xyz_header,
-    load_and_prepare_xyz,
     get_nanocrystalline_grains,
+    load_and_prepare_xyz,
     orient_and_shift_grain,
 )
-from itertools import repeat
-
-from pathlib import Path
 
 
 def sample_grains(grains, min_dist, N, rng=np.random.default_rng(), max_attempts=32):
