@@ -143,12 +143,12 @@ def get_periodic_images(ipoints, domain, buffer_size):
     return faces, corners
 
 
-def get_voronoi_cells(min_dist, density, domain, buffer_size=20):
+def get_voronoi_cells(min_dist, density, domain, rng, buffer_size=20):
     ## Sample a low density set of points in the target domain
     # We use these points to calculate a feasible Voronoi region
     # which we use as the grains of the nanocrystallites
-    box = makeRectPrism(**domain)
-    vor_gen = AmorphousGenerator(min_dist=min_dist, density=density)
+    box = makeRectPrism(*domain)
+    vor_gen = AmorphousGenerator(min_dist=min_dist, density=density, rng=rng)
     vor_obj = Volume(points=box, generator=vor_gen)
     vor_obj.populate_atoms(print_progress=False)
 
@@ -216,9 +216,9 @@ def orient_and_shift_grain(generator, rng, lattice_param):
 
     return generator
 
-def get_nanocrystalline_grains(min_dist, density, domain):
+def get_nanocrystalline_grains(min_dist, density, domain, rng):
 
-    cells, N_interior = get_voronoi_cells(min_dist, density, domain)
+    cells, N_interior = get_voronoi_cells(min_dist, density, domain, rng)
 
     ## Get bisectors for all facets of each cell and change into planes by region
     bisectors = get_voronoi_bisectors(cells, np.arange(N_interior))
