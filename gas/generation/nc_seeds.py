@@ -114,7 +114,7 @@ def add_seeds_to_amorphous_block(
 
     ## Combine into scene and generate atoms
     scene = PeriodicScene(
-        domain_cell=Voxel(atoms.get_cell(), origin=cell_data['cell_orig']),
+        domain=Voxel(atoms.get_cell(), origin=cell_data['cell_orig']),
         objects=[amor_block] + final_seeds,
         pbc=pbc,
     )
@@ -123,7 +123,7 @@ def add_seeds_to_amorphous_block(
 
     if return_seeds:
         grain_scene = PeriodicScene(
-            domain_cell=scene.domain_cell,
+            domain=scene.domain,
             objects=final_seeds,
             pbc=pbc,
         )

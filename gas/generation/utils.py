@@ -38,9 +38,14 @@ def load_and_prepare_xyz(fp, fold_positions=True):
                     cell_data['cell_vec3']])
     
     ## Read atoms and set cell domain
-    atoms = ase.io.read(fp, format='xyz')
-    atoms.set_cell(cell)
-    atoms.set_pbc(cell_data['pbc'])
+    atoms = ase.io.read(fp, format='extxyz')
+    cell_data = {}
+    cell = atoms.get_cell()
+    cell_data['cell_vec1'] = cell[0]
+    cell_data['cell_vec2'] = cell[1]
+    cell_data['cell_vec3'] = cell[2]
+    cell_data['cell_orig'] = [0, 0, 0]
+    cell_data['pbc'] = [1, 1, 1]
 
     if fold_positions:
         ## Fold atoms into periodic cell
@@ -147,7 +152,7 @@ def get_voronoi_cells(min_dist, density, domain, rng, buffer_size=20):
     ## Sample a low density set of points in the target domain
     # We use these points to calculate a feasible Voronoi region
     # which we use as the grains of the nanocrystallites
-    box = makeRectPrism(*domain)
+    box = makeRectPrism(**domain)
     vor_gen = AmorphousGenerator(min_dist=min_dist, density=density, rng=rng)
     vor_obj = Volume(points=box, generator=vor_gen)
     vor_obj.populate_atoms(print_progress=False)
