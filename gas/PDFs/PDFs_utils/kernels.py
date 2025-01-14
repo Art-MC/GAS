@@ -14,6 +14,7 @@ with open(os.path.join(os.path.dirname(__file__), "./near_neighbors.cu"), "r") a
         "find_neighbors",
         backend=backend,
         options=options,
+        jitify=True,
         )
 
 with open(os.path.join(os.path.dirname(__file__), "./rdf.cu"), "r") as f:
@@ -22,4 +23,5 @@ with open(os.path.join(os.path.dirname(__file__), "./rdf.cu"), "r") as f:
         "rdf",
         backend=backend,
         options=options,
+        jitify=True,
         )

@@ -7,7 +7,7 @@ from czone.scene import PeriodicScene
 from czone.util.voxel import Voxel
 from czone.volume import MultiVolume, Plane, Volume, get_bounding_box, makeRectPrism
 from pymatgen.core import Structure
-from utils import (
+from .utils import (
     fix_xyz_header,
     get_nanocrystalline_grains,
     load_and_prepare_xyz,

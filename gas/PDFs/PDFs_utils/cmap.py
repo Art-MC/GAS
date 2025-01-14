@@ -91,7 +91,21 @@ def get_cmap(cmap: Optional[Union[str, None]] = None, **kwargs) -> Colormap:
     Args:
         cmap (str | None, optional): String corresponding to a colorcet colormap name,
             a mpl.colors.LinearSegmentedColormap object, or a
-            mpl.colors.ListedColormap object. Defaults to None -> CET_C7.
+            mpl.colors.ListedColormap object. Defaults to None -> matplotlib gray.
+            Cmap string options include:
+                - All matplotlib colormap names, e.g. "viridis"
+                  You can see a full list of mpl colormaps by printing out plt.colormaps()
+                - Colorcet string names, e.g. "CET_L09" or "cet_CET_L09"
+                - "linear" -> mpl gray
+                - "diverging" -> mpl coolwarm
+                - "linear_cbl" -> cet CBL1 -- colorblind-safe linear
+                - "diverging_cbl" -> cet CBD1 -- colorblind-safe linear
+                - "cet_rainbow" -> cet R1 -- a good rainbow colormap
+                - "legacy4fold" -> cet C2 -- 4-fold colormap oriented as was the original PyLorentz default
+                - "purehsv" -> mpl hsv -- true hsv
+                - "6fold" or "hsv" -> cet C6 -- an improved hsv wheel
+                - "4fold" -> cet C7
+                - "isoluminant" -> cet C10
 
     Keyword Args:
         shift (float, optional): The amount to shift the colormap by in radians. Defaults to 0.
@@ -103,62 +117,76 @@ def get_cmap(cmap: Optional[Union[str, None]] = None, **kwargs) -> Colormap:
     Returns:
         mpl.colors.Colormap: Matplotlib.colors.Colormap object.
     """
+    shift = kwargs.get("shift", 0)
+    invert = kwargs.get("invert", False)
     if cmap is None:
         cmap = "linear"
     elif isinstance(cmap, colors.LinearSegmentedColormap) or isinstance(cmap, colors.ListedColormap):
         return cmap
     elif isinstance(cmap, str):
-        cmap = cmap.lower()
+        if cmap in plt.colormaps():
+            cmap = plt.get_cmap(cmap)
+        elif cmap.lower().startswith("cet"):
+            splits = cmap.split("_")
+            # doesn't work for all, but parses many
+            cm2 = f"cet_CET_{splits[1].upper()}_{'_'.join(splits[2:])}".strip('_')
+            if cm2 in cc.colormaps():
+                cmap = plt.get_cmap(cm2)
+            elif "0" in cm2:
+                cm3 = cm2.replace("0","")
+                if cm3 in cc.colormaps():
+                    cmap = plt.get_cmap(cm3)
+        if isinstance(cmap, str):  # unable to find so far
+            try:
+                if cmap in ["linear", "lin", "", "default"]:
+                    cmap = plt.get_cmap("gray")
+                elif cmap in ["diverging", "div"]:
+                    cmap = plt.get_cmap("coolwarm")
+                elif cmap in ["linear_cbl", "cbl", "lin_cbl"]:
+                    cmap = cc.cm.CET_CBL1
+                elif cmap in ["diverging_cbl", "div_cbl"]:
+                    cmap = cc.cm.CET_CBD1
+                elif cmap in ["cet_rainbow", "cet_r1", "r1"]:
+                    cmap = cc.cm.CET_R1
+                elif cmap in ["legacy4fold", "cet_c2", "c2", "cet_2"]:
+                    cmap = cc.cm.CET_C2
+                    shift += -np.pi / 2  # matching directions of legacy 4-fold
+                elif cmap in ["purehsv", "legacyhsv"]:
+                    cmap = plt.get_cmap("hsv")
+                    invert = not invert
+                    shift += np.pi / 2
+                elif cmap in ["cet_c6", "c6", "cet_6", "6fold", "6-fold", "sixfold", "hsv", "cyclic"]:
+                    cmap = cc.cm.CET_C6
+                    invert = not invert
+                    shift += np.pi / 2
+                elif cmap in ["cet_c7", "c7", "cet_7", "4fold", "fourfold", "4-fold"]:
+                    cmap = cc.cm.CET_C7
+                    invert = not invert
+                elif cmap in ["cet_c8", "c8", "cet_8"]:
+                    cmap = cc.cm.CET_C8
+                elif cmap in ["cet_c10", "c10", "cet_10", "isolum", "isoluminant", "iso"]:
+                    cmap = cc.cm.CET_C10
+                elif cmap in ["cet_c11", "c11", "cet_11"]:
+                    cmap = cc.cm.CET_C11
+                elif cmap in plt.colormaps():
+                    cmap = plt.get_cmap(cmap)
+                else:
+                    print(f"Unknown colormap input '{cmap}'.")
+                    print("You can also pass a colormap object directly.")
+                    print("Proceeding with default gray.")
+                    cmap = plt.get_cmap("gray")
+            except NameError:
+                print("Colorcet not installed, proceeding with hsv from mpl")
+                cmap = plt.get_cmap("hsv")
+                invert = not invert
+                shift -= np.pi / 2
+
     else:
         raise TypeError(f"Unknown input type {type(cmap)}, please input a matplotlib colormap or valid string")
 
-    shift = kwargs.get("shift", 0)
-    invert = kwargs.get("invert", False)
-    try:
-        if cmap in ["linear", "lin", ""]:
-            cmap = plt.get_cmap("gray")
-        elif cmap in ["diverging", "div"]:
-            cmap = plt.get_cmap("coolwarm")
-        elif cmap in ["linear_cbl", "cbl", "lin_cbl"]:
-            cmap = cc.cm.CET_CBL1
-        elif cmap in ["diverging_cbl", "div_cbl"]:
-            cmap = cc.cm.CET_CBD1
-        elif cmap in ["cet_rainbow", "cet_r1", "r1"]:
-            cmap = cc.cm.CET_R1
-        elif cmap in ["legacy4fold", "cet_c2", "c2", "cet_2"]:
-            cmap = cc.cm.CET_C2
-            shift += -np.pi / 2  # matching directions of legacy 4-fold
-        elif cmap in ["purehsv", "legacyhsv"]:
-            cmap = plt.get_cmap("hsv")
-            invert = not invert
-            shift += np.pi / 2
-        elif cmap in ["cet_c6", "c6", "cet_6", "6fold", "sixfold", "hsv", "cyclic"]:
-            cmap = cc.cm.CET_C6
-            invert = not invert
-            shift += np.pi / 2
-        elif cmap in ["cet_c7", "c7", "cet_7", "4fold", "fourfold", "4-fold"]:
-            cmap = cc.cm.CET_C7
-            invert = not invert
-        elif cmap in ["cet_c8", "c8", "cet_8"]:
-            cmap = cc.cm.CET_C8
-        elif cmap in ["cet_c10", "c10", "cet_10", "isolum", "isoluminant", "iso"]:
-            cmap = cc.cm.CET_C10
-        elif cmap in ["cet_c11", "c11", "cet_11"]:
-            cmap = cc.cm.CET_C11
-        elif cmap in plt.colormaps():
-            cmap = plt.get_cmap(cmap)
-        else:
-            print(f"Unknown colormap input '{cmap}'.")
-            print("You can also pass a colormap object directly.")
-            print("Proceeding with default cc.cm.CET_C7.")
-            cmap = cc.cm.CET_C7
-    except NameError:
-        print("Colorcet not installed, proceeding with hsv from mpl")
-        cmap = plt.get_cmap("hsv")
-        invert = not invert
-        shift -= np.pi / 2
     if shift != 0:  # given as radian convert to [0,1]
         shift = shift % (2 * np.pi) / (2 * np.pi)
     if shift != 0 or invert:
         cmap = roll_cmap(cmap, shift, invert)
     return cmap
+

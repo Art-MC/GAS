@@ -97,9 +97,10 @@ def plot_RDF3b(
             if i == 0:
                 ax.set_ylabel(f"$\\theta$ (deg)")
         if log:
+            gslice += 1
             _mask = gslice > 0.0
             gslice[_mask] = np.log(gslice[_mask])
-            gslice[~_mask] = 0
+            gslice[~_mask] = np.min(gslice)
 
         if intensity_range == "ordered":
             vmin = 0.001 if vmin is None else vmin
@@ -118,7 +119,8 @@ def plot_RDF3b(
             orig_cmap = get_cmap(cmap_str)
             mp = kwargs.get("cmap_midpoint")
             cmap = shift_cmap_center(orig_cmap, midpointval=mp, vmin=vmin_ax, vmax=vmax_ax)
-
+        else:
+            cmap = get_cmap(cmap_str)
         im = ax.matshow(
             gslice, cmap=cmap, origin=origin, aspect=aspect, vmin=vmin_ax, vmax=vmax_ax, #**kwargs
         )
@@ -161,7 +163,7 @@ def plot_r1r2_RDF3b(
     def thetaFormatter(x, pos):
         return f"{x*dtheta:.3g}"
 
-    cmap = kwargs.pop("cmap", "magma")
+    cmap = kwargs.pop("cmap", "inferno")
     origin = kwargs.pop("origin", "lower")
 
     gr_r1r2 = np.array([np.diag(gr[i]) for i in range(gr.shape[0])])
