@@ -19,17 +19,41 @@ def load_xyz(f, pbcs=None, filter_pos=[None,None,None], pbc_pad=0, v=1, manual_r
     if v >= 1:
         print(f"loading file: {f.name}")
     atoms = aio.read(f)
-    if manual_read_header:
+    if manual_read_header or not np.any(atoms.get_cell()):
+        gen_cell = False 
         with open(f, 'r') as ff:
-            tag = ff.readlines()[1]
-            if pbcs is None:
-                pbcs = tag.split("pbc")[1][2:-2]
-                pbcs = [i=="T" for i in pbcs[::2]]
-
-            cell = tag.split('"')[1]
-            cell = np.fromstring(cell, sep=' ').reshape((3,3))
-            if not np.any(cell):
-                print("unable to find cell, generating from positions")
+            tag = ff.readlines()[1].strip()
+            if np.any(tag): 
+                if v>=2: 
+                    print("tags: ", tag)
+                if pbcs is None:
+                    if "pbc" in tag: 
+                        pbcs = tag.split("pbc")[1][2:-2]
+                        pbcs = [i=="T" for i in pbcs[::2]]
+                try: # Haili formatting 
+                    cell = tag.split('"')[1]
+                    cell = np.fromstring(cell, sep=' ').reshape((3,3))
+                    if not np.any(cell):
+                        gen_cell = True 
+                except IndexError: 
+                    pcell = tag.split(" ")
+                    if pcell[0] == 'Box' and pcell[1] == 'size:': # some Bhatia xyz files
+                        dims = pcell[2].split("x")
+                        if 'nm' in dims[0]: 
+                            cell = [float(d.strip('nm'))*10 for d in dims]
+                        else: 
+                            raise NotImplementedError(f"Need to allow for new unit: {dims}")
+                    elif len(pcell) == 3: 
+                        cell = pcell 
+                        if v>=2: 
+                            print("setting cell from tags: ", cell )
+                    else: 
+                        gen_cell = True 
+            else: 
+                gen_cell = True 
+            if gen_cell: 
+                if v >=1: 
+                    print("Unable to find cell in tags. Generating from positions.")
                 cell = np.max(atoms.positions, axis=0)
         atoms.set_cell(cell)
         atoms.set_pbc(pbcs)

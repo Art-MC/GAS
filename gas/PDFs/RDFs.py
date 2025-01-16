@@ -66,7 +66,9 @@ class RDF(object):
             positions.shape[-1] == 3
         ), "should be generalizable but havent checked with non 3D vectors"
         Dim = 3
-        assert hist_r_max < bbox_np.min() / 2, f" (should check first for pbcs) cell {atoms.cell}, hist_r_max {hist_r_max}"
+        for p, d in zip(pbcs, bbox_np): 
+            if not p: 
+                assert hist_r_max < d / 2, f"hist_r_max > cell/2 for at least one dimension without pbcs: r: {hist_r_max} cell: {atoms.cell} pbcs: {pbcs}"
 
 
         vprint(f"Cell size (A): {bbox_np}")
@@ -133,7 +135,10 @@ class RDF(object):
         volume_inds_cp = cp.array(vol, dtype=cp.int32)
         volume_shape_cp = cp.array(volume_inds_cp.shape, dtype=cp.int32)
         if len(positions) > 1000:
-            N_max_neighbors = int(min(np.round(ave_neighbors)*1.2, len(positions)))  # calculate from density
+            # N_max_neighbors = int(min(np.round(ave_neighbors)*5, len(positions)+1))  # calculate from density
+            N_max_neighbors = 2*int(min(np.round(ave_neighbors)*5, len(positions)+1))  # calculate from density
+            # print("N_max_neighbors: ", N_max_neighbors)
+            # N_max_neighbors = int(min(np.round(ave_neighbors)*1.2, len(positions)))  # calculate from density
         else:
             N_max_neighbors = len(positions)
         neighbors_inds_cp = -1*cp.ones((batch_size, N_max_neighbors), dtype=cp.int64)
@@ -222,6 +227,10 @@ class RDF(object):
             f"Total time (h:m:s) {str(timedelta(seconds=round(ttime,3))).rstrip('0')}"
         )
         vprint(f"Center atoms per sec: {len(center_inds_skip) / ttime:_.2f}\n")
+        # I honestly don't know why this is necessary
+        # but running multiple RDFs back to back can inconsistently lead to illegal memory address
+        # errors, and freeing the blocks for some reason fixes it 
+        cp.get_default_memory_pool().free_all_blocks() 
         return rr, gr
 
     def rdf_cpu(

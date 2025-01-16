@@ -153,6 +153,7 @@ def plot_r1r2_RDF3b(
     aspect=None,
     intensity_range="ordered",
     return_figax = False,
+    save=None, 
     **kwargs,
 ):
     "theta_slice and r_slice given in deg and angstroms respectively"
@@ -216,5 +217,8 @@ def plot_r1r2_RDF3b(
     if return_figax:
         return fig, ax
     else:
+        if save: 
+            print("saving: ", save)
+            plt.savefig(save, dpi=kwargs.pop("dpi", 600), bbox_inches="tight")
         plt.show()
         return

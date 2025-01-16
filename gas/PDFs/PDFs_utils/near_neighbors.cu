@@ -59,7 +59,7 @@ __global__ void find_neighbors(int* poslist_round, \
                         neighbors_inds_list[out_ind_part + num_neighbors] = value;
                         num_neighbors++;
                         if (num_neighbors > Nmax_neighbors){
-                            printf("MAX NEIGHBORS LIMIT REACHED. DECREASE dr_ind OR DECREASE R_max\n");
+                            printf("MAX NEIGHBORS LIMIT REACHED. (%d) > (%d) DECREASE dr_ind OR DECREASE R_max\n", num_neighbors, Nmax_neighbors);
                             break;
                         }
                     }

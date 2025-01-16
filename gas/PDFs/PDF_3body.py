@@ -1,5 +1,6 @@
 import numpy as np
 import time
+from warnings import warn
 
 from scipy.spatial import KDTree
 from datetime import timedelta
@@ -9,6 +10,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     cp = np
 from tqdm import tqdm
+
 
 class PDF3B(object):
 
@@ -34,6 +36,7 @@ class PDF3B(object):
         pbcs=None,
         subpixel_weights=True,
         pbar=True,
+        nvals_fac=1.5,
     ):
         xp = self._xp
         stime = time.perf_counter()
@@ -78,9 +81,7 @@ class PDF3B(object):
 
         tree_all = KDTree(positions_np, copy_data=True, boxsize=bbox_np_pbcs)
         center_inds_skip = center_inds[::skip]
-        tree_centers = KDTree(
-            positions_np[center_inds_skip], copy_data=True, boxsize=bbox_np_pbcs
-        )
+        tree_centers = KDTree(positions_np[center_inds_skip], copy_data=True, boxsize=bbox_np_pbcs)
         inds_all = tree_centers.query_ball_tree(tree_all, hist_r_max)
         inds_all = [xp.array(i) for i in inds_all]
         end_KD = time.perf_counter()
@@ -100,7 +101,7 @@ class PDF3B(object):
 
         ### making big arrays that will be filled
         natoms_dens = (4 / 3 * xp.pi * hist_r_max**3) * dens
-        maxval_n = int(1.5 * natoms_dens**2)
+        maxval_n = int(nvals_fac * natoms_dens**2)
         vals = xp.zeros((3, maxval_n * batch_size)).astype("float")
         maxinds = max([len(i) for i in inds_all])
         inds2 = xp.zeros((batch_size, maxinds)).astype("int")
@@ -123,9 +124,7 @@ class PDF3B(object):
             vprint(f"Num non-edge atoms = {len(center_inds)}")
 
         if skip != 1:
-            vprint(
-                f"Skip = {skip}, so calculating using {len(center_inds_skip)} atoms as centers"
-            )
+            vprint(f"Skip = {skip}, so calculating using {len(center_inds_skip)} atoms as centers")
         # vprint(f'atomic density = {dens:.3} atoms / A^3')
         vprint("Final shape will be: ", hist_sig.shape)
 
@@ -177,9 +176,15 @@ class PDF3B(object):
                 r_floor2 = xp.round(r_ind2).astype("int")
                 theta_floor = xp.round(theta_ind).astype("int")
 
-            good_vals = (r_floor1 > 1e-9) & (r_floor2 > 1e-9) & (theta_floor > 0) & (theta_floor < 180)
+            good_vals = (
+                (r_floor1 > 1e-9) & (r_floor2 > 1e-9) & (theta_floor > 0) & (theta_floor < 180)
+            )
             nvals = good_vals.sum()
-            assert nvals <= vals.shape[1], f"Size of vals must be increased"
+            assert nvals <= vals.shape[1], (
+                f"nvals {nvals} > vals.shape[1] {vals.shape[1]}.\n"
+                + f"Increase 'nvals_fac' (currently {nvals_fac}) argument to fix this. "
+                + "If running out of memory, decrease batch size to compensate."
+            )
             vals[0, :nvals] = theta_floor[good_vals]
             vals[1, :nvals] = r_floor2[good_vals]
             vals[2, :nvals] = r_floor1[good_vals]
@@ -198,13 +203,12 @@ class PDF3B(object):
                 weights=weights,
             )
             if split_bincount:
-                vals[[1,2]] = vals[[2,1]]
+                vals[[1, 2]] = vals[[2, 1]]
                 hist_sig += self._bincountdd(
                     vals[:, :nvals],
                     (num_bins_theta, num_bins_r, num_bins_r),
                     weights=weights,
                 )
-
 
         hist_sig /= np.ceil(len(center_inds) / skip)
 
@@ -215,7 +219,7 @@ class PDF3B(object):
         gr[1:-1, 1:, 1:] /= (
             dens**2
             * dr**2
-            * 8 # if all off diag indices
+            * 8  # if all off diag indices
             # * 4 # if triu
             * xp.pi**2
             * r1**2
@@ -232,9 +236,7 @@ class PDF3B(object):
 
         vprint("-- done --")
         ttime = time.perf_counter() - stime
-        vprint(
-            f"Total time (h:m:s) {str(timedelta(seconds=round(ttime,3))).rstrip('0')}"
-        )
+        vprint(f"Total time (h:m:s) {str(timedelta(seconds=round(ttime,3))).rstrip('0')}")
         vprint(f"Center atoms per sec: {len(center_inds_skip) / ttime:.1f}\n")
         return gr
 
@@ -243,15 +245,11 @@ class PDF3B(object):
         if xp.any(pbcs):
             assert xp.all(xp.min(pointslists, axis=1) >= 0)
             assert xp.all(xp.max(pointslists, axis=1) <= bbox)
-        assert xp.issubdtype(
-            pointslists.dtype, float
-        ), f"pointslists type: {pointslists.dtype}"
+        assert xp.issubdtype(pointslists.dtype, float), f"pointslists type: {pointslists.dtype}"
         dif = pointslists - points[:, None]
         for i, ind in enumerate(pbcs):
             if ind:
-                dif[:, :, i] = (
-                    xp.mod(dif[:, :, i] + bbox[i] * 0.5, bbox[i]) - bbox[i] * 0.5
-                )
+                dif[:, :, i] = xp.mod(dif[:, :, i] + bbox[i] * 0.5, bbox[i]) - bbox[i] * 0.5
         return dif
 
     def _bincountdd(self, vals, nbins, weights=None):
@@ -267,9 +265,7 @@ class PDF3B(object):
         xy = xp.ravel_multi_index(vals, nbins, mode="wrap")
         minlength = int(np.prod(nbins))
         if weights is not None:
-            hist = xp.bincount(xy, weights=1 - weights, minlength=minlength).reshape(
-                nbins
-            )
+            hist = xp.bincount(xy, weights=1 - weights, minlength=minlength).reshape(nbins)
             xy = xp.ravel_multi_index(vals + 1, nbins, mode="wrap")
             hist += xp.bincount(xy, weights=weights, minlength=minlength).reshape(nbins)
         else:
