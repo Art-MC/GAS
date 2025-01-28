@@ -45,6 +45,7 @@ class RDF(object):
         v=None,
         pbcs=None,
         reduced=True,
+        dr_ind_min = 0.25, 
     ):
         xp = self._xp
         stime = time.perf_counter()
@@ -111,8 +112,14 @@ class RDF(object):
             vol[x_inds,y_inds,z_inds] = np.arange(atoms.positions.shape[0])
             # smaller val will mean more precise, but only in cases where there are atoms that are
             # really really close, which aren't normally physical
-            if len(np.unique(vol)) == len(atoms.positions)+1 or dr_ind < 0.5:
+            _num_in_vol = len(np.unique(vol)) - 1
+            _num_atoms = len(atoms.positions)
+            if _num_in_vol == _num_atoms or dr_ind <= dr_ind_min:
                 _setup_running = False
+                if _num_in_vol != _num_atoms: 
+                    vprint(f"Proceeding with dr_ind of {dr_ind} despite losing "
+                          +f"{_num_atoms - _num_in_vol} / {_num_atoms:.2e} atoms "
+                          +f"({100*(1-(_num_in_vol / _num_atoms)):.3f}%)")
             else:
                 vprint(f"reducing dr_ind from {dr_ind} -> {dr_ind/2}")
                 dr_ind /= 2
@@ -136,8 +143,8 @@ class RDF(object):
         volume_shape_cp = cp.array(volume_inds_cp.shape, dtype=cp.int32)
         if len(positions) > 1000:
             # N_max_neighbors = int(min(np.round(ave_neighbors)*5, len(positions)+1))  # calculate from density
-            N_max_neighbors = 2*int(min(np.round(ave_neighbors)*5, len(positions)+1))  # calculate from density
-            # print("N_max_neighbors: ", N_max_neighbors)
+            N_max_neighbors = int(min(np.round(ave_neighbors)*2, len(positions)*8))  # calculate from density
+            vprint("N_max_neighbors: ", N_max_neighbors)
             # N_max_neighbors = int(min(np.round(ave_neighbors)*1.2, len(positions)))  # calculate from density
         else:
             N_max_neighbors = len(positions)
@@ -162,7 +169,7 @@ class RDF(object):
         threads_RDF = (kernel_RDF.max_threads_per_block,)
         blocks_RDF = (cp.size(neighbors_inds_cp) // threads_RDF[0] + 1,)
 
-        compute_stream = cp.cuda.stream.Stream(non_blocking=True)
+        compute_stream = cp.cuda.stream.Stream(non_blocking=False) # requires non_blocking=False
         # may be incorrect
         # see: https://stackoverflow.com/questions/64581056/how-to-properly-use-cupy-streams
         with compute_stream:

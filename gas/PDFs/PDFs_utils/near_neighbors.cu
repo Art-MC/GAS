@@ -33,21 +33,23 @@ __global__ void find_neighbors(int* poslist_round, \
         // iterate through volume to get neighbors
         // the if pbcs[] and continue statements are redundent, because currently only good
         // centerpoints are given here. doesn't hurt to have em tho.
-        for (int i=-1*search_rad; i<=search_rad; i++){
+        // printf("tid: (%d) starting num_neighbors (%d)\n", tid, num_neighbors);
+        bool stop = false; 
+        for (int i=-1*search_rad; (i<=search_rad && !stop); i++){
             mod_ind_x = cpos[0] + i;
             if (pbcs[0]) {
                 mod_ind_x = ((mod_ind_x % volume_shape[0]) + volume_shape[0]) % volume_shape[0]; // true modulo (python like)
             }
             mod_ind_x = mod_ind_x * volume_shape[2] * volume_shape[1];
 
-            for (int j=-1*search_rad; j<=search_rad; j++){
+            for (int j=-1*search_rad; (j<=search_rad && !stop); j++){
                 mod_ind_y = cpos[1] + j;
                 if (pbcs[1]) {
                     mod_ind_y = ((mod_ind_y % volume_shape[1]) + volume_shape[1]) % volume_shape[1];
                 }
                 mod_ind_y = mod_ind_y * volume_shape[2];
 
-                for (int k=-1*search_rad; k<=search_rad; k++){
+                for (int k=-1*search_rad; (k<=search_rad && !stop); k++){
                     mod_ind_z = cpos[2] + k;
                     if (pbcs[2]) {
                         mod_ind_z = ((mod_ind_z % volume_shape[2]) + volume_shape[2]) % volume_shape[2];
@@ -60,12 +62,13 @@ __global__ void find_neighbors(int* poslist_round, \
                         num_neighbors++;
                         if (num_neighbors > Nmax_neighbors){
                             printf("MAX NEIGHBORS LIMIT REACHED. (%d) > (%d) DECREASE dr_ind OR DECREASE R_max\n", num_neighbors, Nmax_neighbors);
-                            break;
+                            stop = true;
                         }
                     }
                 }
             }
         }
+        // printf("tid: (%d) num_neighbors (%d)\n", tid, num_neighbors);
         num_neighbors_list[tid] = num_neighbors;
     }
 }
