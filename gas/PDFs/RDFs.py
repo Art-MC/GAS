@@ -121,7 +121,7 @@ class RDF(object):
                           +f"{_num_atoms - _num_in_vol} / {_num_atoms:.2e} atoms "
                           +f"({100*(1-(_num_in_vol / _num_atoms)):.3f}%)")
             else:
-                vprint(f"reducing dr_ind from {dr_ind} -> {dr_ind/2}")
+                vprint(f"Reducing dr_ind from {dr_ind} -> {dr_ind/2}")
                 dr_ind /= 2
 
         vprint(f"Num total atoms in sim = {len(positions)}")
@@ -325,15 +325,13 @@ class RDF(object):
         inds2 = xp.zeros((batch_size, maxinds), dtype=cp.int32)
         drs = xp.zeros((batch_size, maxinds), dtype=cp.float64)
 
-        vprint(f"Num total atoms in sim = {len(positions)}")
+        _ps = f"Num total atoms in sim = {len(positions)}"
         num_centers = len(center_inds_skip)
         if not np.all(pbcs):
-            vprint(f"Num non-edge atoms = {len(center_inds)}")
+            _ps += f" | Num non-edge atoms = {len(center_inds)}"
         if skip != 1:
-            vprint(
-                f"Skip = {skip}, so calculating using {num_centers} atoms as centers"
-            )
-        # vprint(f'atomic density = {dens:.3} atoms / A^3')
+            _ps += f" | Skip = {skip}, so calculating using {num_centers} atoms as centers"
+        vprint(_ps) 
         num_bins = hist_sig.shape[0]
         # vprint("Final shape will be: ", hist_sig[:-1].shape)
 

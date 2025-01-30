@@ -147,7 +147,7 @@ def get_voronoi_cells(min_dist, density, domain, rng, buffer_size=20):
     ## Sample a low density set of points in the target domain
     # We use these points to calculate a feasible Voronoi region
     # which we use as the grains of the nanocrystallites
-    box = makeRectPrism(*domain)
+    box = makeRectPrism(**domain)
     vor_gen = AmorphousGenerator(min_dist=min_dist, density=density, rng=rng)
     vor_obj = Volume(points=box, generator=vor_gen)
     vor_obj.populate_atoms(print_progress=False)
