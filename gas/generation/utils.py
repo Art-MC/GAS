@@ -153,6 +153,9 @@ def get_voronoi_cells(min_dist, density, domain, rng, buffer_size=20):
     vor_obj.populate_atoms(print_progress=False)
 
     vor_points = vor_obj.atoms
+    # all_points = vor_points     
+
+    # all_points = np.vstack([vor_points, box])
 
     ## Augment points with periodic images
     faces, corners = get_periodic_images(vor_points, [domain[k] for k in 'abc'], buffer_size)
@@ -216,13 +219,12 @@ def orient_and_shift_grain(generator, rng, lattice_param):
 
     return generator
 
-def get_nanocrystalline_grains(min_dist, density, domain, rng):
-
-    cells, N_interior = get_voronoi_cells(min_dist, density, domain, rng)
-
+def get_nanocrystalline_grains(min_dist, density, domain, rng)-> list[Volume]:
+    
+    vor, N_interior = get_voronoi_cells(min_dist, density, domain, rng)
     ## Get bisectors for all facets of each cell and change into planes by region
-    bisectors = get_voronoi_bisectors(cells, np.arange(N_interior))
-    plane_sets = get_planes_from_bisectors(cells, bisectors)
+    bisectors = get_voronoi_bisectors(vor, np.arange(N_interior))
+    plane_sets = get_planes_from_bisectors(vor, bisectors)
 
     ## Create a set of volumes utilizing each facets by Voronoi region
     # we have to add the top/bottom faces, since we are only periodic in x/y
@@ -230,3 +232,154 @@ def get_nanocrystalline_grains(min_dist, density, domain, rng):
     topbottom = [Plane((0,0,1), origin+np.array([0,0,domain['c']])), Plane((0,0,-1), origin)]
 
     return [Volume(alg_objects=p + topbottom) for p in plane_sets.values()]
+
+
+
+    # volumes = []
+    
+    # vor.vertices[:,0] = np.clip(vor.vertices[:,0], 0, domain['a'])
+    # vor.vertices[:,1] = np.clip(vor.vertices[:,1], 0, domain['b'])
+    # vor.vertices[:,2] = np.clip(vor.vertices[:,2], 0, domain['c'])
+    
+    # # for i, region_idx in enumerate(vor.point_region):
+    # #     inds = np.array(vor.regions[region_idx])
+    # #     vertices = vor.vertices[inds]
+    # #     cpoint = vor.points[np.argwhere(vor.point_region==region_idx)].squeeze()
+    # #     vertices[inds==-1] = cpoint
+    # #     # if -1 in vor.regions[region_idx]:  # Ignore infinite regions
+    # #     #     continue
+        
+    # #     # Clip to bounding box
+    # #     # clipped_vertices = np.clip(vertices, [0, 0, 0], [domain['a'], domain['b'], domain['c']])
+        
+    # #     volume = Volume(vertices)  # Assuming cz.Volume takes a list of vertices
+    # #     volumes.append(volume)
+    # #     print("\nvolume: \n", volume)
+    
+    # center = vor.points.mean(axis=0)
+    # ptp_bound = np.ptp(vor.points, axis=0)
+
+    # central_vertices = [] 
+    # edge_vertices = [] 
+    
+    # for i in range(len(vor.points)): 
+    #     cpoint = vor.points[i] 
+    #     region = np.array(vor.regions[vor.point_region[i]])
+    #     # print(cpoint, region)
+
+    #     if np.all(region>=0): 
+    #         vertices = vor.vertices[region]
+    #         central_vertices.append(vertices)
+    #     else: 
+    #         ridge_inds = np.where(vor.ridge_points == i)[0]
+    #         ridge_vertices = np.array(vor.ridge_vertices)[ridge_inds]
+    #         ridge_points = np.array(vor.ridge_points)[ridge_inds]
+    #         # print(ridge_vertices)
+    #         vertices = vor.vertices[np.unique(ridge_vertices[ridge_vertices>=0])].tolist()
+    #         vertices.append(cpoint.tolist()) 
+    #         for pointidx, simplex in zip(ridge_points, ridge_vertices): 
+    #             if np.any(simplex < 0): 
+    #                 i = simplex[simplex >= 0][0]  # finite end Voronoi vertex
+
+    #                 t = vor.points[pointidx[1]] - vor.points[pointidx[0]]  # tangent
+    #                 t /= np.linalg.norm(t)
+    #                 print("t: ", t)
+    #                 n = np.array([-t[1], t[0]])  # normal
+
+    #                 midpoint = vor.points[pointidx].mean(axis=0)
+    #                 print("midpont c: ", midpoint, center, n)
+    #                 direction = np.sign(np.dot(midpoint - center, n)) * n
+                    
+    #                 far_point = vor.vertices[i] + direction * ptp_bound.max()
+    #                 far_point[0] = np.clip(far_point[0], 0, domain['a'])
+    #                 far_point[1] = np.clip(far_point[1], 0, domain['b'])
+    #                 if far_point.tolist() not in vertices: 
+    #                     vertices.append(far_point.tolist()) 
+    #         edge_vertices.append(np.array(vertices))
+            
+    #     # print(vertices)
+    #     # print()
+    #     volume = Volume(vertices)  # Assuming cz.Volume takes a list of vertices
+    #     volumes.append(volume)
+
+    
+    
+    # return volumes
+    
+#     bounding_box = np.array([[0, domain['a']], [0, domain['b']], [0, domain['c']]])  # Cube from (0,0,0) to (10,10,10)
+#     voronoi_cells = get_voronoi_cells2(vor, bounding_box)
+#     volumes = []
+#     for c, verts in voronoi_cells.items(): 
+#         volumes.append(
+#             Volume(verts)
+#         )
+#     return volumes 
+    
+    
+    
+# def plane_box_intersection(plane_point, plane_normal, bbox):
+#     """
+#     Compute intersections of a plane (defined by a point and normal) with a 3D bounding box.
+#     Returns a list of intersection points.
+#     """
+#     intersections = []
+#     min_x, max_x = bbox[0]
+#     min_y, max_y = bbox[1]
+#     min_z, max_z = bbox[2]
+
+#     # Define 6 bounding box planes
+#     box_planes = [
+#         ((min_x, 0, 0), (1, 0, 0)),  # X = min_x
+#         ((max_x, 0, 0), (-1, 0, 0)), # X = max_x
+#         ((0, min_y, 0), (0, 1, 0)),  # Y = min_y
+#         ((0, max_y, 0), (0, -1, 0)), # Y = max_y
+#         ((0, 0, min_z), (0, 0, 1)),  # Z = min_z
+#         ((0, 0, max_z), (0, 0, -1))  # Z = max_z
+#     ]
+
+#     for (p0, n) in box_planes:
+#         # Solve for intersection t where (p - p0) ⋅ n = 0
+#         denom = np.dot(plane_normal, n)
+#         if abs(denom) > 1e-6:  # Avoid division by zero (parallel planes)
+#             t = np.dot(np.array(p0) - plane_point, n) / denom
+#             intersection = plane_point + t * plane_normal
+            
+#             # Check if the intersection is within the bounding box
+#             if (min_x <= intersection[0] <= max_x and 
+#                 min_y <= intersection[1] <= max_y and 
+#                 min_z <= intersection[2] <= max_z):
+#                 intersections.append(intersection)
+
+#     return intersections
+
+# def get_voronoi_cells2(vor, bbox):
+#     """
+#     Compute the Voronoi cells clipped to the bounding box.
+#     Returns a dictionary mapping each input point to its bounding polyhedron.
+#     """
+#     voronoi_cells = {}
+
+#     for i, point in enumerate(vor.points):
+#         region_index = vor.point_region[i]
+#         region = vor.regions[region_index]
+
+#         if -1 in region:  # Region has infinite ridges
+#             finite_vertices = [vor.vertices[v] for v in region if v != -1]
+#             for (p1, p2), ridge_vertices in zip(vor.ridge_points, vor.ridge_vertices):
+#                 if -1 in ridge_vertices and (p1 == i or p2 == i):
+#                     # Find finite vertex and compute direction
+#                     finite_vertex = [vor.vertices[v] for v in ridge_vertices if v != -1][0]
+#                     voronoi_center = vor.points[[p1, p2]].mean(axis=0)
+#                     direction = finite_vertex - voronoi_center
+#                     direction /= np.linalg.norm(direction)  # Normalize
+
+#                     # Compute intersections with bounding box
+#                     clipped_points = plane_box_intersection(finite_vertex, direction, bbox)
+#                     finite_vertices.extend(clipped_points)
+
+#             voronoi_cells[tuple(point)] = np.array(finite_vertices)
+#         else:  # Fully finite cell
+#             finite_vertices = [vor.vertices[v] for v in region]
+#             voronoi_cells[tuple(point)] = np.array(finite_vertices)
+
+#     return voronoi_cells
