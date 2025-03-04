@@ -75,9 +75,9 @@ class RDF(object):
                 assert hist_r_max < d / 2, f"hist_r_max > cell/2 for at least one dimension without pbcs: r: {hist_r_max} cell: {atoms.cell} pbcs: {pbcs}"
 
 
-        vprint(f"Cell size (A): {bbox_np}")
+        # vprint(f"Cell size (A): {bbox_np}")
         # vprint(f"max dist possible between two points with full pbcs: {np.sqrt(3*(bbox_np.max()/2)**2):.2f} A")
-        vprint(f"Using a max radius of {hist_r_max} A")
+        # vprint(f"Using a max radius of {hist_r_max} A")
 
         ### get center positions that aren't within r_max of a boundary without pbcs
         goods = np.ones(len(positions_np)).astype("bool")
@@ -91,15 +91,9 @@ class RDF(object):
         center_inds_skip = center_inds[::skip]
         num_centers = len(center_inds_skip)
 
-        ### Histogram coordinates
-        rr = xp.arange(0.0, hist_r_max + dr, dr).astype("float")
-        numbins = len(rr)
-        histo_height = 4096*4 # int(tot_num_neighbors)
-        hist_sig = xp.zeros((histo_height, numbins), dtype=xp.float64)
-
         ### Density
         dens = positions.shape[0] / volume
-        r_vol = 4 * np.pi * hist_r_max**3
+        r_vol = 4/3 * np.pi * hist_r_max**3
         ave_neighbors = dens * r_vol
 
         ### setup volume
@@ -127,18 +121,17 @@ class RDF(object):
                 vprint(f"Reducing dr_ind from {dr_ind} -> {dr_ind/2}")
                 dr_ind /= 2
 
-        vprint(f"Num total atoms in sim = {len(positions)}")
+        _ps = f"# total atoms = {len(positions)}"
         if not np.all(pbcs):
-            vprint(f"Num non-edge atoms = {len(center_inds)}")
+            _ps += f" | # non-edge atoms = {len(center_inds)}"
         if skip != 1:
-            vprint(
-                f"Skip = {skip}, so calculating using {num_centers} atoms as centers"
-            )
-        vprint(f'atomic density = {dens:.3} atoms / A^3')
+            _ps += f" | skip = {skip} -> using {num_centers} centers"
+            if num_centers < 1e3 and skip > 1: 
+                _ps += "\n=======================\n"
+                _ps += "Consider reducing skip to increase # of centers for accuracy\n"
+                _ps += "======================="
+        vprint(_ps)         
         
-        print(f"Center inds skip:\n{center_inds_skip}")
-        print(f"center positions:\n{positions_np[center_inds_skip]}")
-
         ### array setup
         if batch_size <= 0:
             batch_size = num_centers
@@ -148,10 +141,8 @@ class RDF(object):
         volume_inds_cp = cp.array(vol, dtype=cp.int32)
         volume_shape_cp = cp.array(volume_inds_cp.shape, dtype=cp.int32)
         if len(positions) > 1000:
-            # N_max_neighbors = int(min(np.round(ave_neighbors)*5, len(positions)+1))  # calculate from density
-            N_max_neighbors = int(min(np.round(ave_neighbors)*4, len(positions)*8))  # calculate from density
-            vprint("N_max_neighbors: ", N_max_neighbors)
-            # N_max_neighbors = int(min(np.round(ave_neighbors)*1.2, len(positions)))  # calculate from density
+            N_max_neighbors = int(min(np.round(ave_neighbors)*3, len(positions)))  # calculate from density
+            # vprint("N_max_neighbors: ", N_max_neighbors)
         else:
             N_max_neighbors = len(positions)
         neighbors_inds_cp = -1*cp.ones((batch_size, N_max_neighbors), dtype=cp.int64)
@@ -163,6 +154,12 @@ class RDF(object):
 
         positions_cp = cp.array(positions, dtype=cp.float64)
         neighbor_poslist_shape = cp.array(cp.shape(neighbors_inds_cp), dtype=cp.int64)
+        
+        ### Histogram coordinates
+        rr = xp.arange(0.0, hist_r_max + dr, dr).astype("float")
+        numbins = len(rr)
+        histo_height = min(4096*4, N_max_neighbors) # TODO optimize
+        hist_sig = xp.zeros((histo_height, numbins), dtype=xp.float64)
 
         ### kernels
         # Currently have two seperate kernels, can/should be combined into one
@@ -183,7 +180,8 @@ class RDF(object):
                 b0 = min(a0 + batch_size, num_centers)
                 batch_center_inds = cp.array(center_inds_skip[a0:b0], dtype=cp.int64)
                 cbatch_size = b0 - a0
-
+                neighbors_inds_cp[:] = -1
+                
                 ### get nearest neighbors for this batch
                 kernel_NN(
                     blocks_NN,
@@ -198,22 +196,13 @@ class RDF(object):
                         neighbors_num_cp,
                         int(N_max_neighbors),
                         int(cbatch_size),
+                        int(_num_atoms),
                         int(Dim),
                         pbcs_cp,
                     ),
                 )
-
+                
                 ### calculate RDF contribution for batch
-                
-                print("\n==== Input to kernel RDF")
-                print(f"positions_cp: {positions_cp.shape}\n{positions_cp}\n")
-                print(f"batch_center_inds: {batch_center_inds.shape}\n{batch_center_inds}\n")
-                print(f"neighbors_inds_cp: {neighbors_inds_cp.shape}\n{neighbors_inds_cp}\n")
-                print(f"neighbor_poslist_shape: {neighbor_poslist_shape.shape}\n{neighbor_poslist_shape}\n")
-                print(f"bbox_cp, pbcs_cp:\n{bbox_cp}\n{pbcs_cp}\n")
-                
-                print("End input kernel RDF ====\n")
-                
                 kernel_RDF(
                     blocks_RDF,
                     threads_RDF,
@@ -292,9 +281,9 @@ class RDF(object):
         positions = xp.array(atoms.positions)
         positions_np = np.array(atoms.positions)  # for KD tree
 
-        vprint(f"Cell size (A): {bbox_np}")
+        # vprint(f"Cell size (A): {bbox_np}")
         # vprint(f"max dist possible between two points with full pbcs: {np.sqrt(3*(bbox_np.max()/2)**2):.2f} A")
-        vprint(f"Using a max radius of {hist_r_max} A")
+        # vprint(f"Using a max radius of {hist_r_max} A")
 
         ### get center positions that aren't within r_max of a boundary without pbcs
         goods = np.ones(len(positions_np)).astype("bool")
@@ -343,12 +332,14 @@ class RDF(object):
         inds2 = xp.zeros((batch_size, maxinds), dtype=cp.int32)
         drs = xp.zeros((batch_size, maxinds), dtype=cp.float64)
 
-        _ps = f"Num total atoms in sim = {len(positions)}"
+        _ps = f"Total atoms = {len(positions)}"
         num_centers = len(center_inds_skip)
         if not np.all(pbcs):
             _ps += f" | Num non-edge atoms = {len(center_inds)}"
         if skip != 1:
             _ps += f" | Skip = {skip}, so calculating using {num_centers} atoms as centers"
+            if num_centers < 1e3 and skip > 1: 
+                _ps += f"\nConsider reducing skip to increase # of centers for accuracy"
         vprint(_ps) 
         num_bins = hist_sig.shape[0]
         # vprint("Final shape will be: ", hist_sig[:-1].shape)

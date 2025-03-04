@@ -7,12 +7,13 @@ __global__ void find_neighbors(int* poslist_round, \
                     long* neighbors_inds_list,\
                     long* num_neighbors_list, \
                     int Nmax_neighbors,\
-                    int tot_num_centers,\
+                    int num_centers,\
+                    int tot_num_atoms,\
                     int Dim, \
                     bool* pbcs)
 {
     unsigned int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    if (tid < tot_num_centers){
+    if (tid < num_centers){
         // index in poslist
         int cind = center_poslist_inds[tid];
         // x,y,z center indices in volume_inds
@@ -29,13 +30,13 @@ __global__ void find_neighbors(int* poslist_round, \
         int value = 0;
         int num_neighbors = 0;
         int out_ind_part = tid * Nmax_neighbors;
-
+        
         // iterate through volume to get neighbors
         // the if pbcs[] and continue statements are redundent, because currently only good
         // centerpoints are given here. doesn't hurt to have em tho.
         // printf("tid: (%d) starting num_neighbors (%d)\n", tid, num_neighbors);
         bool stop = false; 
-        for (int i=-1*search_rad; (i<=search_rad && !stop); i++){
+        for (int i=-1*search_rad; (i<search_rad && !stop); i++){
             mod_ind_x = cpos[0] + i;
             if (pbcs[0]) {
                 mod_ind_x = ((mod_ind_x % volume_shape[0]) + volume_shape[0]) % volume_shape[0]; // true modulo (python like)
@@ -58,10 +59,13 @@ __global__ void find_neighbors(int* poslist_round, \
                     vol_ind = mod_ind_x + mod_ind_y + mod_ind_z;
                     value = volume_inds[vol_ind];
                     if (value != -1){
+                        if (value > tot_num_atoms+1){
+                            printf("BAD VALUE in near_neighbors.cu | tid %d | cind %d | vol_ind %d | cpos [%d, %d, %d] | value %d | mod_ind x y z %d %d %d\n", tid, cind, vol_ind, cpos[0], cpos[1], cpos[2], value, mod_ind_x, mod_ind_y, mod_ind_z);
+                        }
                         neighbors_inds_list[out_ind_part + num_neighbors] = value;
                         num_neighbors++;
                         if (num_neighbors > Nmax_neighbors){
-                            printf("MAX NEIGHBORS LIMIT REACHED. (%d) > (%d) DECREASE dr_ind OR DECREASE R_max\n", num_neighbors, Nmax_neighbors);
+                            printf("MAX NEIGHBORS LIMIT REACHED. (%d) > (%d) might need to increase N_max_neighbors or something else is wrong\n", num_neighbors, Nmax_neighbors);
                             stop = true;
                         }
                     }

@@ -18,13 +18,14 @@ __global__ void rdf(double* poslist, \
     if (tid < numrows * neighbor_poslist_shape[1] && neighbor_poslist_inds[tid] >= 0){
         double dist = 0;
         double dist_i = 0;
-        int ind_0 = tid / neighbor_poslist_shape[1]; // center_index
-        int ind_1 = center_poslist_inds[ind_0]*Dim; // position_index of center
-        int ind_2 = neighbor_poslist_inds[tid]*Dim; // position index of neighbor
+        int ind_0 = tid / neighbor_poslist_shape[1]; // index of center in center_poslist_inds
+        int ind_1 = center_poslist_inds[ind_0]*Dim; // poslist index of center
+        int ind_2 = neighbor_poslist_inds[tid]*Dim; // poslist index of neighbor
         if (ind_2<0){
-            printf("BAD VALUE rdf.cu\n");
+            printf("BAD VALUE rdf.cu | tid: %d | Dim: %d | ind_2 %d | neighbor_poslist_inds[tid]: %ld ( >0 = %d) | ind_1 %d | ind_0 %d\n", tid, Dim, ind_2, neighbor_poslist_inds[tid], neighbor_poslist_inds[tid] > 0, ind_1, ind_0);
         }
-        for (int i=0; i<Dim; i++){
+        
+        for (int i=0; i<Dim; i++){ // periodic distance
             dist_i = fabs(poslist[ind_1+i] - poslist[ind_2+i]);
             if(pbcs[i]){
                 dist_i = fmin(dist_i, boxSize[i]-dist_i);
