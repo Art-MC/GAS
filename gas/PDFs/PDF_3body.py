@@ -18,8 +18,16 @@ class PDF3B(object):
         if isinstance(device, int):
             self._xp = cp
             cp.cuda.runtime.setDevice(device)
-        elif device.lower() == "cpu":
-            self._xp = np
+        elif isinstance(device, str):
+            device = device.lower()
+            if device == "cpu":
+                self._xp = np
+            elif device == "gpu" or device.startswith("cuda"):
+                self._xp = cp
+            else: 
+                raise ValueError(f"unknown device string {device}")
+        else:
+            raise ValueError(f"unknown device {device} of type {type(device)}")
         self.device = device
         self._v = v
         return

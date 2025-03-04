@@ -24,12 +24,15 @@ class RDF(object):
             self._xp = cp
             cp.cuda.runtime.setDevice(device)
         elif isinstance(device, str):
-            if device.lower() == "cpu":
+            device = device.lower()
+            if device == "cpu":
                 self._xp = np
-            elif device.lower() == "gpu":
+            elif device == "gpu" or device.startswith("cuda"):
                 self._xp = cp
+            else: 
+                raise ValueError(f"unknown device string {device}")
         else:
-            raise ValueError(f"unknown device {device}")
+            raise ValueError(f"unknown device {device} of type {type(device)}")
         self.device = device
         self._v = v
         return
@@ -132,6 +135,9 @@ class RDF(object):
                 f"Skip = {skip}, so calculating using {num_centers} atoms as centers"
             )
         vprint(f'atomic density = {dens:.3} atoms / A^3')
+        
+        print(f"Center inds skip:\n{center_inds_skip}")
+        print(f"center positions:\n{positions_np[center_inds_skip]}")
 
         ### array setup
         if batch_size <= 0:
@@ -143,7 +149,7 @@ class RDF(object):
         volume_shape_cp = cp.array(volume_inds_cp.shape, dtype=cp.int32)
         if len(positions) > 1000:
             # N_max_neighbors = int(min(np.round(ave_neighbors)*5, len(positions)+1))  # calculate from density
-            N_max_neighbors = int(min(np.round(ave_neighbors)*2, len(positions)*8))  # calculate from density
+            N_max_neighbors = int(min(np.round(ave_neighbors)*4, len(positions)*8))  # calculate from density
             vprint("N_max_neighbors: ", N_max_neighbors)
             # N_max_neighbors = int(min(np.round(ave_neighbors)*1.2, len(positions)))  # calculate from density
         else:
@@ -198,6 +204,16 @@ class RDF(object):
                 )
 
                 ### calculate RDF contribution for batch
+                
+                print("\n==== Input to kernel RDF")
+                print(f"positions_cp: {positions_cp.shape}\n{positions_cp}\n")
+                print(f"batch_center_inds: {batch_center_inds.shape}\n{batch_center_inds}\n")
+                print(f"neighbors_inds_cp: {neighbors_inds_cp.shape}\n{neighbors_inds_cp}\n")
+                print(f"neighbor_poslist_shape: {neighbor_poslist_shape.shape}\n{neighbor_poslist_shape}\n")
+                print(f"bbox_cp, pbcs_cp:\n{bbox_cp}\n{pbcs_cp}\n")
+                
+                print("End input kernel RDF ====\n")
+                
                 kernel_RDF(
                     blocks_RDF,
                     threads_RDF,
@@ -218,7 +234,9 @@ class RDF(object):
                 )
 
         # cp.cuda.Stream.null.synchronize()
+        # print('stream is done1: ', compute_stream.done)
         compute_stream.synchronize()
+        # print('stream is done2: ', compute_stream.done)
 
         gr = xp.copy(hist_sig[:,:-1]).sum(axis=0)
         rr = rr[:-1]

@@ -198,7 +198,7 @@ def plot_r1r2_RDF3b(
         mp = kwargs.pop("cmap_midpoint")
         cmap = shift_cmap_center(orig_cmap, midpointval=mp, vmin=vmin_ax, vmax=vmax_ax)
 
-    im = ax.matshow(gr_r1r2, cmap=cmap, origin=origin, vmin=vmin_ax, vmax=vmax_ax, **kwargs)
+    im = ax.matshow(gr_r1r2, cmap=cmap, origin=origin, vmin=vmin_ax, vmax=vmax_ax)
     ax.set_ylabel(f"$\\theta$ (deg)")
     ax.set_xlabel(f"r1 = r2 (A)")
     ax.set_title(title)
