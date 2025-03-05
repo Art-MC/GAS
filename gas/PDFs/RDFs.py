@@ -50,6 +50,8 @@ class RDF(object):
         reduced=True,
         dr_ind_min = 0.25, 
     ):
+        if not np.all(atoms.positions > 0): 
+            raise NotImplementedError("Need to test for atoms positions <0, don't think works")
         xp = self._xp
         stime = time.perf_counter()
         v = self._v if v is None else v

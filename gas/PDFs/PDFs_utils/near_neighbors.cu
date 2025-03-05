@@ -36,26 +36,39 @@ __global__ void find_neighbors(int* poslist_round, \
         // centerpoints are given here. doesn't hurt to have em tho.
         // printf("tid: (%d) starting num_neighbors (%d)\n", tid, num_neighbors);
         bool stop = false; 
-        for (int i=-1*search_rad; (i<search_rad && !stop); i++){
+        for (int i=-1*search_rad; (i<=search_rad && !stop); i++){
             mod_ind_x = cpos[0] + i;
             if (pbcs[0]) {
                 mod_ind_x = ((mod_ind_x % volume_shape[0]) + volume_shape[0]) % volume_shape[0]; // true modulo (python like)
             }
+            else{
+                mod_ind_x = min(mod_ind_x, volume_shape[0]-1); // only works cuz all positions > 0
+            }
             mod_ind_x = mod_ind_x * volume_shape[2] * volume_shape[1];
 
-            for (int j=-1*search_rad; (j<search_rad && !stop); j++){
+            for (int j=-1*search_rad; (j<=search_rad && !stop); j++){
                 mod_ind_y = cpos[1] + j;
                 if (pbcs[1]) {
                     mod_ind_y = ((mod_ind_y % volume_shape[1]) + volume_shape[1]) % volume_shape[1];
                 }
+                else{
+                    mod_ind_y = min(mod_ind_y, volume_shape[1]-1);
+                }
                 mod_ind_y = mod_ind_y * volume_shape[2];
 
-                for (int k=-1*search_rad; (k<search_rad && !stop); k++){
+                for (int k=-1*search_rad; (k<=search_rad && !stop); k++){
                     mod_ind_z = cpos[2] + k;
                     if (pbcs[2]) {
                         mod_ind_z = ((mod_ind_z % volume_shape[2]) + volume_shape[2]) % volume_shape[2];
                     }
-
+                    else{
+                        mod_ind_z = min(mod_ind_z, volume_shape[2]-1);
+                    }
+                    
+                    if (mod_ind_x < 0 || mod_ind_y < 0 || mod_ind_z < 0){
+                        printf("BAD VALUE in near_neighbors.cu -- have a mod_ind < 0 -- wasn't expecting this to happen but know how to fix it (extra check max statements) | tid %d | cind %d | vol_ind %d | cpos [%d, %d, %d] | value %d | mod_ind x y z %d %d %d\n", tid, cind, vol_ind, cpos[0], cpos[1], cpos[2], value, mod_ind_x, mod_ind_y, mod_ind_z);
+                    }
+                    
                     vol_ind = mod_ind_x + mod_ind_y + mod_ind_z;
                     value = volume_inds[vol_ind];
                     if (value != -1){
