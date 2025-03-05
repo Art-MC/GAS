@@ -22,7 +22,7 @@ __global__ void rdf(double* poslist, \
         int ind_1 = center_poslist_inds[ind_0]*Dim; // poslist index of center
         int ind_2 = neighbor_poslist_inds[tid]*Dim; // poslist index of neighbor
         if (ind_2<0){
-            printf("BAD VALUE rdf.cu | tid: %d | Dim: %d | ind_2 %d | neighbor_poslist_inds[tid]: %ld ( >0 = %d) | ind_1 %d | ind_0 %d\n", tid, Dim, ind_2, neighbor_poslist_inds[tid], neighbor_poslist_inds[tid] > 0, ind_1, ind_0);
+            printf("BAD VALUE in rdf.cu | tid: %d | Dim: %d | ind_2 %d | neighbor_poslist_inds[tid]: %ld ( >0 = %d) | ind_1 %d | ind_0 %d\n", tid, Dim, ind_2, neighbor_poslist_inds[tid], neighbor_poslist_inds[tid] > 0, ind_1, ind_0);
         }
         
         for (int i=0; i<Dim; i++){ // periodic distance

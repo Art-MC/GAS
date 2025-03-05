@@ -43,14 +43,14 @@ __global__ void find_neighbors(int* poslist_round, \
             }
             mod_ind_x = mod_ind_x * volume_shape[2] * volume_shape[1];
 
-            for (int j=-1*search_rad; (j<=search_rad && !stop); j++){
+            for (int j=-1*search_rad; (j<search_rad && !stop); j++){
                 mod_ind_y = cpos[1] + j;
                 if (pbcs[1]) {
                     mod_ind_y = ((mod_ind_y % volume_shape[1]) + volume_shape[1]) % volume_shape[1];
                 }
                 mod_ind_y = mod_ind_y * volume_shape[2];
 
-                for (int k=-1*search_rad; (k<=search_rad && !stop); k++){
+                for (int k=-1*search_rad; (k<search_rad && !stop); k++){
                     mod_ind_z = cpos[2] + k;
                     if (pbcs[2]) {
                         mod_ind_z = ((mod_ind_z % volume_shape[2]) + volume_shape[2]) % volume_shape[2];

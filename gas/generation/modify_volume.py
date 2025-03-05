@@ -22,12 +22,12 @@ def modify_volume(starting_atoms: Atoms, config: dict, rng:np.random.Generator |
         rng = np.random.default_rng() 
         
     atoms = starting_atoms.copy() 
-
+    
     atoms = _jitter_atoms(atoms, config, rng) 
 
     atoms = _rotate_atoms(atoms, config, rng, v) 
 
-    atoms = _shift_atoms(atoms, config, rng)
+    atoms = _shift_atoms(atoms, config, rng, v)
             
     atoms = _push_close_atoms(atoms, threshold=config["threshold"], v=v)
     return atoms 
@@ -36,7 +36,9 @@ def modify_volume(starting_atoms: Atoms, config: dict, rng:np.random.Generator |
 def _rotate_atoms(atoms: Atoms, config:dict, rng:np.random.Generator, v:int=1) -> Atoms: 
     bbox = np.diag(atoms.cell)
     rad = config['radius']
-    if config["N_iterations_rot"] >= 1: 
+    if config["N_iterations_rot"] <= 0:
+        return atoms
+    else:  
         assert rad <= bbox.min()/2, f"Sphere radius {rad} must be < bbox/2: {bbox/2}"
     
     # assert np.all(atoms.pbc), "need to check _rotate_atoms if not having pbcs"
@@ -87,6 +89,46 @@ def _rotate_atoms(atoms: Atoms, config:dict, rng:np.random.Generator, v:int=1) -
             
     return atoms         
     
+
+def _shift_atoms(atoms: Atoms, config: dict, rng:np.random.Generator, v:int=1) -> Atoms: 
+    if "shift_sigma" not in config.keys():
+        return atoms  
+    if config["shift_sigma"] == 0 or config["N_iterations_shift"] == 0: 
+        return atoms 
+    
+    bbox = np.diag(atoms.cell) 
+    N_points = np.ceil(bbox/config["shift_point_spacing"]).astype('int')
+    N_points = np.maximum(N_points, 4) # interpolator requires min 4 points each direction
+
+
+    for a0 in tqdm(range(config["N_iterations_shift"]), desc="applying shifts", disable=v<1): 
+        
+        w_positions = atoms.positions 
+        w_positions = np.mod(w_positions, bbox)
+        
+        xgrid = np.linspace(0, bbox[0], N_points[0])
+        ygrid = np.linspace(0, bbox[1], N_points[1])
+        zgrid = np.linspace(0, bbox[2], N_points[2])
+
+        shifts = rng.normal(0, config["shift_sigma"], (3, *N_points))
+        # shifts = rng.normal(0, config["shift_sigma"], (3, *N_points))
+        shifts[:,-1] = shifts[:, 0] # pbcs
+        shifts[:,:,-1] = shifts[:,:,0] # pbcs
+        shifts[:,:,:,-1] = shifts[:,:,:,0] # pbcs
+        xinterp = RegularGridInterpolator((xgrid,ygrid,zgrid), shifts[0], method='cubic')
+        yinterp = RegularGridInterpolator((xgrid,ygrid,zgrid), shifts[1], method='cubic')
+        zinterp = RegularGridInterpolator((xgrid,ygrid,zgrid), shifts[2], method='cubic')
+
+        xshifts = xinterp(w_positions)
+        yshifts = yinterp(w_positions)
+        zshifts = zinterp(w_positions)
+        shifts = np.stack([xshifts,yshifts,zshifts]).T 
+        
+        atoms.positions += shifts 
+
+        atoms.wrap(eps=1e-10)      
+    
+    return atoms 
 
 def _remove_close_atoms(starting_atoms:Atoms, threshold:float, v:int=1):
     atoms = starting_atoms.copy() 
@@ -188,46 +230,6 @@ def _get_dists_pbcs(points, cpointslists, bbox, pbcs=[1, 1, 1]):
             abs[:, :, i] = np.minimum(abs[:, :, i], bbox[i] - abs[:, :, i])
     return np.sqrt(np.sum(abs**2, axis=-1))
 
-
-def _shift_atoms(atoms: Atoms, config: dict, rng:np.random.Generator, v:int=1) -> Atoms: 
-    if "shift_sigma" not in config.keys():
-        return atoms  
-    if config["shift_sigma"] == 0: 
-        return atoms 
-    
-    bbox = np.diag(atoms.cell) 
-    N_points = np.ceil(bbox/config["shift_point_spacing"]).astype('int')
-    N_points = np.maximum(N_points, 4) # interpolator requires min 4 points each direction
-
-
-    for a0 in tqdm(range(config["N_iterations_shift"]), desc="applying shifts", disable=v<1): 
-        
-        w_positions = atoms.positions 
-        w_positions = np.mod(w_positions, bbox)
-        
-        xgrid = np.linspace(0, bbox[0], N_points[0])
-        ygrid = np.linspace(0, bbox[1], N_points[1])
-        zgrid = np.linspace(0, bbox[2], N_points[2])
-
-        shifts = rng.normal(0, config["shift_sigma"], (3, *N_points))
-        # shifts = rng.normal(0, config["shift_sigma"], (3, *N_points))
-        shifts[:,-1] = shifts[:, 0] # pbcs
-        shifts[:,:,-1] = shifts[:,:,0] # pbcs
-        shifts[:,:,:,-1] = shifts[:,:,:,0] # pbcs
-        xinterp = RegularGridInterpolator((xgrid,ygrid,zgrid), shifts[0], method='cubic')
-        yinterp = RegularGridInterpolator((xgrid,ygrid,zgrid), shifts[1], method='cubic')
-        zinterp = RegularGridInterpolator((xgrid,ygrid,zgrid), shifts[2], method='cubic')
-
-        xshifts = xinterp(w_positions)
-        yshifts = yinterp(w_positions)
-        zshifts = zinterp(w_positions)
-        shifts = np.stack([xshifts,yshifts,zshifts]).T 
-        
-        atoms.positions += shifts 
-
-        atoms.wrap(eps=1e-10)      
-    
-    return atoms 
 
 
 def _jitter_atoms(atoms: Atoms, config:dict, rng:np.random.Generator) -> Atoms: 
