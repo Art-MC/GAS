@@ -141,7 +141,7 @@ class RDF(object):
         volume_inds_cp = cp.array(vol, dtype=cp.int32)
         volume_shape_cp = cp.array(volume_inds_cp.shape, dtype=cp.int32)
         if len(positions) > 1000:
-            N_max_neighbors = int(min(np.round(ave_neighbors)*3, len(positions)))  # calculate from density
+            N_max_neighbors = int(min(np.round(ave_neighbors)*4, len(positions)))  # calculate from density
             # vprint("N_max_neighbors: ", N_max_neighbors)
         else:
             N_max_neighbors = len(positions)
@@ -158,7 +158,7 @@ class RDF(object):
         ### Histogram coordinates
         rr = xp.arange(0.0, hist_r_max + dr, dr).astype("float")
         numbins = len(rr)
-        histo_height = min(4096*4, N_max_neighbors) # TODO optimize
+        histo_height = min(4096*16, N_max_neighbors*num_centers) 
         hist_sig = xp.zeros((histo_height, numbins), dtype=xp.float64)
 
         ### kernels
