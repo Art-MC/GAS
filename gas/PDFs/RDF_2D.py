@@ -220,16 +220,19 @@ class RDF_2D(object):
         positions = atoms.positions.copy()
 
         num_slices = int(np.ceil(positions[:,2].max()/slice_thickness))
+        class SliceAtoms: pass
+        SliceAtoms.cell = atoms.cell.array.copy()
+        
         for a0 in trange(num_slices, disable=v<1):
             z1, z2 = a0 * slice_thickness, (a0+1) * slice_thickness
             goods = (positions[:,2] >= z1) & (positions[:,2] <= z2)
             shifted_pos = positions[goods]
             shifted_pos[:,2] -= a0*slice_thickness
-            atoms.positions = shifted_pos
-            atoms.cell[2,2] = np.max(shifted_pos[:,2])+0.001
+            SliceAtoms.positions = shifted_pos
+            SliceAtoms.cell[2,2] = np.max(shifted_pos[:,2])+0.001
 
             rr, gr = self.rdf_cpu(
-                atoms,
+                SliceAtoms,
                 dr=dr,
                 hist_r_max=hist_r_max,
                 skip=skip,
@@ -240,7 +243,7 @@ class RDF_2D(object):
             )
 
             gr_2D_all.append(gr)
-        atoms.positions = positions
+        # atoms.positions = positions
 
         gr_2D_all = self._xp.array(gr_2D_all)
 
