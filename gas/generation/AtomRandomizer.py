@@ -148,7 +148,7 @@ class AtomsRandomizer(object):
                     mod_atoms = self._modify_volume(atoms_index, v=v-1)
                     _running_mod = False 
                 except RuntimeError as e: 
-                    print(f"Avoiding a Runtime Error for {oname} - chunkz = {current_chunk_size[2]}")
+                    print(f"\nAvoiding a Runtime Error for {oname} - chunkz = {current_chunk_size[2]}")
                     if current_chunk_size[2] > 4.01: 
                         current_chunk_size[2] = max(4, current_chunk_size[2] * 3/4)
                     else: 
@@ -156,7 +156,7 @@ class AtomsRandomizer(object):
                         current_chunk_size[1] = current_chunk_size[1]/2
                     
                     self.config_md["chunk_size"] = (current_chunk_size[0], current_chunk_size[1], current_chunk_size[2]/2)
-                    print(f"Decreasing chunk size temporarily from {orig_chunk_size} to {self.config_md["chunk_size"]}")
+                    print(f"Decreasing chunk size temporarily from {orig_chunk_size} to {self.config_md["chunk_size"]}\n")
                     
             self.config_md["chunk_size"] = orig_chunk_size
             
