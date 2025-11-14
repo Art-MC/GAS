@@ -147,7 +147,7 @@ class AtomsRandomizer(object):
                 try: 
                     mod_atoms = self._modify_volume(atoms_index, v=v-1)
                     _running_mod = False 
-                except RuntimeError as e: 
+                except RuntimeError: 
                     print(f"\nAvoiding a Runtime Error for {oname} - chunkz = {current_chunk_size[2]}")
                     if current_chunk_size[2] > 4.01: 
                         current_chunk_size[2] = max(4, current_chunk_size[2] * 3/4)
@@ -307,7 +307,7 @@ class AtomsRandomizer(object):
         gr_max_premd = ndi.gaussian_filter(gr_max_premd, self.rdf_gaussian)
 
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(8,3))
         ax.plot(r, self.orig_grs[atoms_index], label="orig")
         if self.config_md["run_md"]:
             ax.plot(r, gr_min_premd, label="min values premd", lw=2)
@@ -374,8 +374,8 @@ class AtomsRandomizer(object):
         gr_max = ndi.gaussian_filter(gr_max, self.rdf_gaussian)
         gr_max_premd = ndi.gaussian_filter(gr_max_premd, self.rdf_gaussian)
         
-        fig, ax = plt.subplots()
-        ax.plot(r, self.orig_grs[atoms_index], label="orig")
+        fig, ax = plt.subplots(figsize=(8,3))
+        ax.plot(r, self.orig_grs[atoms_index], label="orig", alpha=0.5)
         if self.config_md["run_md"]:
             ax.plot(r, gr_max_premd, label="max values premd", lw=2)
         ax.plot(r, gr_max, label='max values', lw=2)
@@ -383,6 +383,71 @@ class AtomsRandomizer(object):
         ax.set_xlabel("r (A)")
         ax.set_ylabel("gr")
         ax.set_title(self.orig_files[atoms_index].stem)
+        ax.set_ylim([-0.05, gr_max.max()+1])
+        ax.hlines([1], 1,r.max(), colors='k')
+        plt.show()
+            
+        if return_atoms: 
+            return mod_atoms_max
+        else: 
+            return
+            
+            
+    def _show_max_ranges_fig(self, atoms_index:int, title:str|None=None, return_atoms=False, rng_seed=42):
+        # pick the min and max values from each range and calculate rdf and display for (each?) orig file
+        atoms = self._load_cif_and_tile(self.orig_files[atoms_index]) 
+        config_max = {
+            "N_iterations_rot": np.max(self.config_randomize["N_iterations_rot"]), 
+            "N_iterations_shift": np.max(self.config_randomize["N_iterations_shift"]), 
+            "N_points_per_iter": np.max(self.config_randomize["N_points_per_iter"]), 
+            "rot_radius": np.max(self.config_randomize["rot_radius"]), 
+            "theta_max": np.max(self.config_randomize["theta_max"]), 
+            "region_type": "sphere", 
+            "push_threshold": self.gr_thresholds[atoms_index], 
+            "jitter_gaussian_sigma": np.max(self.config_randomize["jitter_gaussian_sigma"]), 
+            "shift_point_spacing": self.config_randomize["shift_point_spacing"][1],
+            "shift_sigma": np.max(self.config_randomize["shift_sigma"]),  
+        }
+
+        rng = np.random.default_rng(rng_seed)
+        modifier_max = TransformVolume(
+            config_randomize=config_max, 
+            config_md=self.config_md, 
+            rng=rng,
+            v=self.v-1,
+        )      
+        mod_atoms_max = modifier_max.apply(atoms)
+        mod_atoms_max_premd = modifier_max._pre_md_atoms.copy()
+        mod_atoms_max = modifier_max._push_close_atoms(mod_atoms_max)
+
+        r, gr_max = self.rdf.rdf(
+            mod_atoms_max,
+            pbcs=[0,0,0], 
+            **self.rdf_config, 
+        )        
+        r, gr_max_premd = self.rdf.rdf(
+            mod_atoms_max_premd,
+            pbcs=[0,0,0], 
+            **self.rdf_config, 
+        )
+        if self.device != "cpu": 
+            r = r.get()
+            gr_max = gr_max.get()
+            gr_max_premd = gr_max_premd.get()
+        
+        gr_max = ndi.gaussian_filter(gr_max, self.rdf_gaussian)
+        gr_max_premd = ndi.gaussian_filter(gr_max_premd, self.rdf_gaussian)
+        
+        fig, ax = plt.subplots(figsize=(8,3))
+        ax.plot(r, self.orig_grs[atoms_index], label="crystal", alpha=0.5)
+        if self.config_md["run_md"]:
+            ax.plot(r, gr_max_premd, label="before MD", lw=2)
+        ax.plot(r, gr_max, label='after MD', lw=2)
+        ax.legend()
+        ax.set_xlabel("r (A)")
+        ax.set_ylabel("gr")
+        title = self.orig_files[atoms_index].stem if title is None else title
+        ax.set_title(title)
         ax.set_ylim([-0.05, gr_max.max()+1])
         ax.hlines([1], 1,r.max(), colors='k')
         plt.show()

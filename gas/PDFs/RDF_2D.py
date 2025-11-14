@@ -221,7 +221,8 @@ class RDF_2D(object):
 
         num_slices = int(np.ceil(positions[:,2].max()/slice_thickness))
         class SliceAtoms: pass
-        SliceAtoms.cell = atoms.cell.array.copy()
+        SliceAtoms.cell = atoms.cell.copy()
+        # SliceAtoms.cell = atoms.cell.array.copy()
         
         for a0 in trange(num_slices, disable=v<1):
             z1, z2 = a0 * slice_thickness, (a0+1) * slice_thickness
